@@ -1,0 +1,55 @@
+{
+  "total": 11568,
+  "levels": {
+    "N1": {
+      "level": "N1",
+      "total": 4044,
+      "markdown": 4044,
+      "merged": 0,
+      "legacyOnly": 0,
+      "supplementedExampleEntries": 32,
+      "exampleEntries": 4044,
+      "exampleSentences": 5842
+    },
+    "N2": {
+      "level": "N2",
+      "total": 4142,
+      "markdown": 3208,
+      "merged": 554,
+      "legacyOnly": 934,
+      "supplementedExampleEntries": 80,
+      "exampleEntries": 3264,
+      "exampleSentences": 5015
+    },
+    "N3": {
+      "level": "N3",
+      "total": 1818,
+      "markdown": 1818,
+      "merged": 0,
+      "legacyOnly": 0,
+      "supplementedExampleEntries": 17,
+      "exampleEntries": 1818,
+      "exampleSentences": 2761
+    },
+    "N4": {
+      "level": "N4",
+      "total": 757,
+      "markdown": 757,
+      "merged": 0,
+      "legacyOnly": 0,
+      "supplementedExampleEntries": 0,
+      "exampleEntries": 757,
+      "exampleSentences": 1277
+    },
+    "N5": {
+      "level": "N5",
+      "total": 807,
+      "markdown": 807,
+      "merged": 0,
+      "legacyOnly": 0,
+      "supplementedExampleEntries": 49,
+      "exampleEntries": 807,
+      "exampleSentences": 1244
+    }
+  }
+}
