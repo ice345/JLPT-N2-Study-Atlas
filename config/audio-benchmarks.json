@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "scope": "benchmark",
+  "description": "The same three JLPT-style lines are synthesized by every candidate so timbre, phrasing and intelligibility can be compared fairly.",
+  "samples": [
+    {
+      "id": "question",
+      "label": "即时问句",
+      "displayText": "頼んでいた件、何とかなりそう？",
+      "ttsText": "頼んでいた件、何とかなりそう？",
+      "checks": ["疑问语调", "何とかなりそう的连读", "自然会话感"]
+    },
+    {
+      "id": "formal",
+      "label": "正式表达",
+      "displayText": "結果が出次第、こちらからご連絡いたします。",
+      "ttsText": "結果が出次第、こちらからご連絡いたします。",
+      "checks": ["出次第的切分", "敬语清晰度", "长句节奏"]
+    },
+    {
+      "id": "kanji",
+      "label": "汉字与停顿",
+      "displayText": "｜準備《じゅんび》は済んで、あとは結果を待つだけです。",
+      "ttsText": "準備は済んで、あとは結果を待つだけです。",
+      "checks": ["準備／済んで的读音", "逗号停顿", "句末稳定度"]
+    }
+  ]
+}

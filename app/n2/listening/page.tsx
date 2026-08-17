@@ -17,7 +17,7 @@ export default function ListeningIndex() {
         <Breadcrumbs items={[{ label: "N2", href: "/n2" }, { label: "听力" }]} />
         <section className="section-hero listening-hero">
           <div><span className="eyebrow">聴解 · LISTENING</span><h1>耳朵先抓功能，<br />不要逐字翻译。</h1></div>
-          <p>問題1–5都按“先学一个判断 → 立即练习 → 标记掌握 → 回到复习”的顺序组织。先选题型，再完成一个短单元。</p>
+          <div className="listening-hero-copy"><p>問題1–5都按“先学一个判断 → 立即练习 → 标记掌握 → 回到复习”的顺序组织。先选题型，再完成一个短单元。</p><Link className="text-link audio-lab-entry" href="/n2/audio-lab">试听 3 种女声与 3 种男声 →</Link></div>
           <div className="sound-wave" aria-hidden="true">{Array.from({ length: 15 }).map((_, i) => <i key={i} />)}</div>
         </section>
 

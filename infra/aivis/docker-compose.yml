@@ -1,0 +1,37 @@
+name: jlpt-aivis
+
+services:
+  aivis-cpu:
+    profiles: ["cpu"]
+    image: ${AIVIS_CPU_IMAGE:-ghcr.io/aivis-project/aivisspeech-engine:cpu-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${AIVIS_PORT:-10101}:10101"
+    volumes:
+      - "${AIVIS_DATA_DIR:?Set AIVIS_DATA_DIR through scripts/audio/engine.sh}:/home/user/.local/share/AivisSpeech-Engine-Dev"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HF_ENDPOINT: ${AIVIS_HF_ENDPOINT:-https://huggingface.co}
+      HF_HUB_OFFLINE: ${AIVIS_HF_HUB_OFFLINE:-0}
+
+  aivis-nvidia:
+    profiles: ["nvidia"]
+    image: ${AIVIS_NVIDIA_IMAGE:-ghcr.io/aivis-project/aivisspeech-engine:nvidia-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${AIVIS_PORT:-10101}:10101"
+    volumes:
+      - "${AIVIS_DATA_DIR:?Set AIVIS_DATA_DIR through scripts/audio/engine.sh}:/home/user/.local/share/AivisSpeech-Engine-Dev"
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HF_ENDPOINT: ${AIVIS_HF_ENDPOINT:-https://huggingface.co}
+      HF_HUB_OFFLINE: ${AIVIS_HF_HUB_OFFLINE:-0}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

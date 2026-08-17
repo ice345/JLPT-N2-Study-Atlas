@@ -15,7 +15,19 @@
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
     "notes:consolidate": "node scripts/consolidate-n2-notes.mjs",
-    "vocab:build": "node scripts/build-vocabulary-catalog.mjs"
+    "vocab:build": "node scripts/build-vocabulary-catalog.mjs",
+    "audio:engine:up": "bash scripts/audio/engine.sh up cpu",
+    "audio:engine:up:nvidia": "bash scripts/audio/engine.sh up nvidia",
+    "audio:engine:down": "bash scripts/audio/engine.sh down",
+    "audio:engine:status": "bash scripts/audio/engine.sh status",
+    "audio:engine:logs": "bash scripts/audio/engine.sh logs",
+    "audio:engine:wait": "bash scripts/audio/engine.sh wait",
+    "audio:engine:bootstrap-bert": "bash scripts/audio/bootstrap-bert-cache.sh",
+    "audio:voices:install": "node scripts/audio/install-voices.mjs",
+    "audio:voices:list": "node scripts/audio/list-voices.mjs",
+    "audio:dictionary:sync": "node scripts/audio/sync-dictionary.mjs",
+    "audio:generate": "node scripts/audio/generate.mjs",
+    "audio:benchmark": "node scripts/audio/generate.mjs --scope benchmark"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

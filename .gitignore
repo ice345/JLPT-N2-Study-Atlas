@@ -29,6 +29,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!infra/aivis/.env.example
 
 # vercel
 .vercel
@@ -41,6 +42,15 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+
+# offline AivisSpeech generation artifacts (never commit model weights or raw audio)
+/.audio-work/
+/infra/aivis/models/
+/infra/aivis/cache/
+/infra/aivis/tmp/
+**/*.aivm
+**/*.aivmx
+**/raw-wav/
 
 # data
 /JLPT_Study_database

@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Project-owned AivisSpeech user dictionary. Add only reviewed readings; synchronization never deletes local user entries.",
+  "entries": []
+}
