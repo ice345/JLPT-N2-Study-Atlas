@@ -1,4 +1,4 @@
-import manifestData from "@/public/audio/manifest.json";
+import manifestData from "@/app/data/audio-manifest.json";
 
 export type AudioAsset = {
   src: string;

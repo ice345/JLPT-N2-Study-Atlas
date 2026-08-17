@@ -11,6 +11,7 @@ const projectRoot = resolve(import.meta.dirname, "../..");
 const voicesPath = resolve(projectRoot, "config/audio-voices.json");
 const benchmarksPath = resolve(projectRoot, "config/audio-benchmarks.json");
 const manifestPath = resolve(projectRoot, "public/audio/manifest.json");
+const bundledManifestPath = resolve(projectRoot, "app/data/audio-manifest.json");
 const workRoot = resolve(projectRoot, ".audio-work/raw-wav");
 const voiceConfig = JSON.parse(await readFile(voicesPath, "utf8"));
 const benchmarkConfig = JSON.parse(await readFile(benchmarksPath, "utf8"));
@@ -175,6 +176,8 @@ for (const job of jobs.filter((item) => item.shouldGenerate)) {
 
 manifest.generatedAt = new Date().toISOString();
 const temporaryManifest = `${manifestPath}.tmp`;
-await writeFile(temporaryManifest, `${JSON.stringify(manifest, null, 2)}\n`);
+const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
+await writeFile(temporaryManifest, manifestJson);
 await rename(temporaryManifest, manifestPath);
+await writeFile(bundledManifestPath, manifestJson);
 console.log(`Generated ${generated}; skipped ${jobs.length - generated}; manifest has ${Object.keys(manifest.items).length} items.`);
