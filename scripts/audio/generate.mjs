@@ -5,6 +5,7 @@ import { constants } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { AivisClient } from "./aivis-client.mjs";
 import { normalizeJapaneseForTts } from "./normalize-japanese.mjs";
+import { problemFourAudioItems } from "./p4-content.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "../..");
 const voicesPath = resolve(projectRoot, "config/audio-voices.json");
@@ -26,15 +27,27 @@ const requestedId = argument("--id");
 const dryRun = args.includes("--dry-run");
 const force = args.includes("--force");
 
-if (scope !== "benchmark") {
-  throw new Error(`Scope '${scope}' is intentionally not enabled yet. This phase generates benchmark audio only.`);
+if (!["benchmark", "p4", "listening", "language"].includes(scope)) {
+  throw new Error(`Unknown scope '${scope}'. Use benchmark, p4, listening, or language.`);
 }
 
-const selectedVoices = Object.entries(voiceConfig.voices)
-  .filter(([key, voice]) => voice.enabledForBenchmark && (!requestedVoice || requestedVoice === key));
-const selectedSamples = benchmarkConfig.samples.filter((sample) => !requestedId || requestedId === sample.id);
-if (!selectedVoices.length) throw new Error(`No benchmark voice matched '${requestedVoice ?? "enabled voices"}'.`);
-if (!selectedSamples.length) throw new Error(`No benchmark sample matched '${requestedId}'.`);
+const voiceEntries = Object.entries(voiceConfig.voices);
+const selectedVoices = voiceEntries.filter(([key, voice]) => scope === "benchmark"
+  ? voice.enabledForBenchmark && (!requestedVoice || requestedVoice === key)
+  : voice.productionApproved && (!requestedVoice || requestedVoice === key));
+const scopedSamples = scope === "benchmark"
+  ? benchmarkConfig.samples
+  : scope === "p4"
+    ? problemFourAudioItems()
+    : scope === "listening"
+      ? problemFourAudioItems().filter((sample) => sample.category === "response-card")
+      : [];
+const selectedSamples = scopedSamples
+  .filter((sample) => !requestedId || requestedId === sample.id || requestedId === sample.sampleId);
+if (!selectedVoices.length) throw new Error(scope === "benchmark"
+  ? `No benchmark voice matched '${requestedVoice ?? "enabled voices"}'.`
+  : "No production-approved voice is configured. Finish the listening review and set productionApproved before generating course audio.");
+if (!selectedSamples.length) throw new Error(`No ${scope} audio item matched '${requestedId ?? "the current content catalog"}'.`);
 
 function commandExists(command) {
   return new Promise((resolvePromise) => {
@@ -91,11 +104,14 @@ const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 manifest.items ??= {};
 const settings = voiceConfig.generationDefaults;
 const jobs = [];
-for (const [voiceKey, voice] of selectedVoices) {
-  for (const sample of selectedSamples) {
+for (const [sampleIndex, sample] of selectedSamples.entries()) {
+  const voicesForSample = scope === "benchmark" ? selectedVoices : [selectedVoices[sampleIndex % selectedVoices.length]];
+  for (const [voiceKey, voice] of voicesForSample) {
     const text = normalizeJapaneseForTts(sample.displayText, { ttsText: sample.ttsText });
-    const assetId = `benchmark-${voiceKey}-${sample.id}`;
-    const target = resolve(projectRoot, `public/audio/benchmark/${voiceKey}/${sample.id}.webm`);
+    const assetId = scope === "benchmark" ? `benchmark-${voiceKey}-${sample.id}` : sample.id;
+    const target = scope === "benchmark"
+      ? resolve(projectRoot, `public/audio/benchmark/${voiceKey}/${sample.id}.webm`)
+      : resolve(projectRoot, `public/audio/problem-4/${sample.category}/${sample.id}.webm`);
     const textHash = audioHash(text, voiceKey, voice, settings);
     const current = manifest.items[assetId];
     const shouldGenerate = force || !current || current.textHash !== textHash || !(await exists(target));
@@ -105,7 +121,7 @@ for (const [voiceKey, voice] of selectedVoices) {
 
 for (const job of jobs) console.log(`${job.shouldGenerate ? "generate" : "skip"} ${job.assetId}`);
 if (dryRun) {
-  console.log(`${jobs.filter((job) => job.shouldGenerate).length}/${jobs.length} benchmark files would be generated.`);
+  console.log(`${jobs.filter((job) => job.shouldGenerate).length}/${jobs.length} ${scope} files would be generated.`);
   process.exit(0);
 }
 
@@ -130,8 +146,11 @@ for (const job of jobs.filter((item) => item.shouldGenerate)) {
   await rm(wavPath, { force: true });
   manifest.items[job.assetId] = {
     textHash: job.textHash,
-    scope: "benchmark",
+    scope,
     sampleId: job.sample.id,
+    problemId: job.sample.problemId,
+    unitId: job.sample.unitId,
+    category: job.sample.category,
     text: job.sample.displayText,
     normalizedText: job.text,
     voice: job.voiceKey,

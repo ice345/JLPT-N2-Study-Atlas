@@ -2,17 +2,17 @@ import Link from "next/link";
 import { SiteHeader } from "./components/site-header";
 
 const levels = [
-  { level: "N1", className: "level-n1", href: "/n2/vocabulary?level=N1", label: "词汇开放" },
+  { level: "N1", className: "level-n1", href: "/vocabulary?level=N1", label: "词汇开放" },
   { level: "N2", className: "level-n2", active: true },
-  { level: "N3", className: "level-n3", href: "/n2/vocabulary?level=N3", label: "词汇开放" },
-  { level: "N4", className: "level-n4", href: "/n2/vocabulary?level=N4", label: "词汇开放" },
-  { level: "N5", className: "level-n5", href: "/n2/vocabulary?level=N5", label: "词汇开放" },
+  { level: "N3", className: "level-n3", href: "/vocabulary?level=N3", label: "词汇开放" },
+  { level: "N4", className: "level-n4", href: "/vocabulary?level=N4", label: "词汇开放" },
+  { level: "N5", className: "level-n5", href: "/vocabulary?level=N5", label: "词汇开放" },
 ];
 
 export default function Home() {
   return (
     <main className="home-page">
-      <SiteHeader />
+      <SiteHeader variant="global" />
       <section className="bubble-landing">
         <div className="staff staff-one" />
         <div className="staff staff-two" />
@@ -27,7 +27,7 @@ export default function Home() {
             进入 N2 学习地图 <span>↗</span>
           </Link>
         </div>
-        <div className="level-orbit" aria-label="JLPT 级别入口">
+        <div className="level-orbit" id="jlpt-levels" aria-label="JLPT 级别入口">
           <div className="orbit-line orbit-a" />
           <div className="orbit-line orbit-b" />
           <div className="center-bubble">

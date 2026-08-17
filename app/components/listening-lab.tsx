@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { JapaneseAudioPlayer } from "@/app/components/japanese-audio-player";
 import { listeningTriggers } from "@/app/data/content";
+import { audioAssetForId } from "@/app/lib/audio-assets";
 import {
   getStudyStore,
   recordReview,
   type ReviewState,
   type StudyRating,
 } from "@/app/lib/study-store";
+import { useActiveStudyTimer } from "@/app/lib/use-active-study-timer";
 
 type DeckMode = "all" | "wrong" | "due" | "random5" | "random10";
 
@@ -19,16 +22,6 @@ const ratingOptions: { rating: StudyRating; label: string }[] = [
 
 function cardId(index: number) {
   return `p4-card-${String(index + 1).padStart(2, "0")}`;
-}
-
-function speak(text: string) {
-  if (!("speechSynthesis" in window)) return false;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ja-JP";
-  utterance.rate = 0.82;
-  window.speechSynthesis.speak(utterance);
-  return true;
 }
 
 function randomIndices(count: number) {
@@ -47,6 +40,8 @@ export function ListeningLab() {
   const [pageInput, setPageInput] = useState("1");
   const [reviewStates, setReviewStates] = useState<Record<string, ReviewState>>({});
   const [message, setMessage] = useState("");
+  const [presentation, setPresentation] = useState<"audio" | "text">("audio");
+  useActiveStudyTimer({ contentId: "problem-4-response-lab", contentType: "listening", domain: "listening", problemId: "problem-4", skill: "即时应答卡片" });
   const groups = ["全部", ...Array.from(new Set(listeningTriggers.map((item) => item.group)))];
 
   useEffect(() => {
@@ -120,6 +115,7 @@ export function ListeningLab() {
           contentId: id,
           contentType: "listening",
           domain: "listening",
+          problemId: "problem-4",
           skill: listeningTriggers[index].tag,
         },
         rating,
@@ -143,7 +139,8 @@ export function ListeningLab() {
           <button className={mode === "wrong" ? "active" : ""} onClick={() => changeMode("wrong")} type="button">不会</button>
           <button className={mode === "due" ? "active" : ""} onClick={() => changeMode("due")} type="button">今日复习</button>
         </div>
-        <p><strong>听音模式：</strong>卡片中的“播放日语”使用浏览器语音合成。TTS 是学习辅助，不是真题录音。</p>
+        <div className="audio-first-switch" aria-label="题卡呈现顺序"><button className={presentation === "audio" ? "active" : ""} onClick={() => setPresentation("audio")} type="button">听音优先</button><button className={presentation === "text" ? "active" : ""} onClick={() => setPresentation("text")} type="button">文本优先</button></div>
+        <p><strong>课程音频：</strong>优先播放本站预生成的 Aivis 静态音频；缺少资产时才使用设备系统日语语音。音频仅作训练辅助，不是真题录音。</p>
       </div>
 
       <div className="listening-filters" aria-label="听力训练分类">
@@ -167,17 +164,17 @@ export function ListeningLab() {
         {pageTriggers.map(({ trigger: item, index }) => {
           const open = revealed.includes(index);
           const state = reviewStates[cardId(index)];
+          const asset = audioAssetForId(cardId(index));
           return (
             <article className={`response-card ${open ? "is-open" : ""}`} key={cardId(index)}>
               <div className="response-topline">
                 <span>{item.tag}</span>
                 <b>{String(index + 1).padStart(2, "0")}</b>
               </div>
-              <p className="japanese-cue" lang="ja">{item.cue}</p>
-              <p className="response-meaning">{item.meaning}</p>
+              {(presentation === "text" || open) ? <><p className="japanese-cue" lang="ja">{item.cue}</p><p className="response-meaning">{item.meaning}</p></> : <p className="audio-first-placeholder">先播放题干，在 3 秒内说出最自然的回应，再显示文本与答案。</p>}
+              <JapaneseAudioPlayer src={asset?.src} duration={asset?.duration} text={item.cue} label="播放题干" />
               <div className="response-card-actions">
                 <button type="button" onClick={() => toggle(index)} aria-expanded={open}>{open ? "收起回应" : "3 秒后看回应"}</button>
-                <button type="button" onClick={() => { if (!speak(item.cue)) setMessage("当前浏览器不支持日语语音合成。"); }}>播放日语</button>
               </div>
               {open && (
                 <div className="response-answer">

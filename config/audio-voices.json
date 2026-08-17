@@ -15,6 +15,13 @@
     "loudnessTargetLufs": -18,
     "truePeakDb": -1.5
   },
+  "productionSelection": {
+    "selectedAt": "2026-08-17",
+    "femaleNeutral": "female-morioki",
+    "maleNeutral": "male-fumifumi",
+    "assignment": "deterministic-round-robin",
+    "decision": "morioki is the learner's explicit priority; fumifumi is the neutral conversational male counterpart required for stable voice diversity."
+  },
   "voices": {
     "female-morioki": {
       "label": "morioki",
@@ -31,9 +38,9 @@
       "checksumSha256": "352858a737b23fe0bd0b7bd73a4956be262aad9bb24a7bf0d1eae9a71a466469",
       "license": "ACML 1.0",
       "licenseUrl": "https://github.com/Aivis-Project/ACML/blob/master/ACML-1.0.md",
-      "licenseReview": "approved_for_benchmark",
+      "licenseReview": "approved_for_production",
       "enabledForBenchmark": true,
-      "productionApproved": false
+      "productionApproved": true
     },
     "female-chu2": {
       "label": "中2",
@@ -88,9 +95,9 @@
       "checksumSha256": "dec42930f9fdd5948831a271fcc8b377f56001273c6d3035cf68465b6dbaf91a",
       "license": "ACML 1.0",
       "licenseUrl": "https://github.com/Aivis-Project/ACML/blob/master/ACML-1.0.md",
-      "licenseReview": "approved_for_benchmark",
+      "licenseReview": "approved_for_production",
       "enabledForBenchmark": true,
-      "productionApproved": false
+      "productionApproved": true
     },
     "male-aida": {
       "label": "阿井田 茂",

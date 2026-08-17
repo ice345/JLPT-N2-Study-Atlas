@@ -1,6 +1,13 @@
-import type { ProblemDefinition, StudyUnitDefinition } from "@/app/data/problem-definition";
+import type { ProblemDefinition, StudyConcept, StudyUnitDefinition } from "@/app/data/problem-definition";
 
 export type ProblemFourUnit = StudyUnitDefinition;
+
+function groupedConcepts(concepts: StudyConcept[], titles: [string, string, string]): StudyConcept[] {
+  return concepts.map((concept, index) => {
+    const groupIndex = index < 3 ? 0 : index < 5 ? 1 : 2;
+    return { ...concept, groupId: `group-${groupIndex + 1}`, groupTitle: titles[groupIndex] };
+  });
+}
 
 export const problemFourUnits: ProblemFourUnit[] = [
   {
@@ -18,7 +25,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["句尾功能", "隐含意图", "催促与追责", "进度确认", "引用转述", "指示执行", "半接受"],
     noteInsight: "先识别说话行为，再用责任箭头判断谁要行动；没有明显功能词时，则回到事实、情绪与上下文。",
-    concepts: [
+    concepts: groupedConcepts([
       {
         cue: "〜てくれない？／〜てもらえると｜助《たす》かる",
         signal: "直接或委婉请求",
@@ -76,7 +83,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
         example: "｜午後《ごご》でもいいなら、お｜願《ねが》いします。",
         exampleMeaning: "如果下午也可以，那就拜托你了。",
       },
-    ],
+    ], ["请求与省略意图", "责任与信息推进", "执行条件与半接受"]),
     traps: [
       { title: "把关键词当答案", contrast: "题干和选项出现同一个词不等于自然回应；答案必须承接功能并推进下一步。" },
       { title: "责任主体反了", contrast: "先画“谁 → 做什么 → 为谁”的箭头，再判断是道歉、接受还是追问。" },
@@ -107,7 +114,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["差点未发生", "避免坏结果", "持续未处理", "做到一半", "预期与现实", "久违与持续", "取消与改主意"],
     noteInsight: "始终把最终事实写清楚：发生／未发生、完成／未完成、原计划／最终决定，避免只凭语法外形作答。",
-    concepts: [
+    concepts: groupedConcepts([
       { cue: "〜ところだった", signal: "差点发生，最终没有", direction: "回应庆幸、安心或确认最后赶上了。", variants: ["もう｜少《すこ》しで〜するところだった", "あやうく〜"], example: "｜間《ま》に｜合《あ》ってよかったね。", exampleMeaning: "赶上了真好。", wrong: "误听成坏结果已经发生。" },
       { cue: "〜ずに｜済《す》んだ", signal: "避免原本担心的结果", direction: "确认“不必做／没有发生”，并表示安心。", variants: ["〜ないで｜済《す》む", "〜なくてよかった"], example: "｜入院《にゅういん》しなくてよかったですね。", exampleMeaning: "不用住院真是太好了。" },
       { cue: "〜っぱなし／〜たまま／〜かけ", signal: "状态持续或做到一半", direction: "提醒关闭、收拾、继续完成或保持原状。", variants: ["やりかけ", "｜置《お》いたまま"], example: "まだ｜途中《とちゅう》なんだね。｜続《つづ》きはどうする？", exampleMeaning: "还在中途啊，接下来怎么办？" },
@@ -115,7 +122,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
       { cue: "N｜年《ねん》ぶり／〜｜以来《いらい》／〜きり", signal: "久违或从某时起一直没有", direction: "区分“时隔 N 年再次发生”和“从那以后持续未发生”。", variants: ["｜久《ひさ》しぶり", "あれっきり"], example: "｜五年《ごねん》ぶりなら、ずいぶん｜久《ひさ》しぶりだね。", exampleMeaning: "时隔五年，那真是好久不见。" },
       { cue: "｜見送《みおく》る／｜思《おも》いとどまる", signal: "暂缓、取消或最后没做", direction: "确认本次不采用／不执行，再追问原因或下一次安排。", variants: ["｜取《と》りやめる", "｜延期《えんき》する"], example: "｜今回《こんかい》はやめたんだね。｜何《なに》が｜問題《もんだい》だったの？", exampleMeaning: "这次不做了啊，哪里有问题？" },
       { cue: "｜思《おも》い｜切《き》って〜／｜最初《さいしょ》は〜つもりじゃなかった", signal: "下决心或后来改变决定", direction: "不要被“原本没想”带走；答案看最后是否实际做了。", variants: ["｜結局《けっきょく》〜ことにした", "やっぱり〜する"], example: "｜結局《けっきょく》、｜申《もう》し｜込《こ》んだんだね。", exampleMeaning: "最后还是报名了啊。" },
-    ],
+    ], ["最终是否发生", "预期、现实与时间线", "取消与决定变化"]),
     traps: [
       { title: "未发生当成已发生", contrast: "ところだった、ずに済んだ都要求先写下“结果未发生”。" },
       { title: "预期当成事实", contrast: "はず、つもり只说明想法；后文的现实结果拥有更高优先级。" },
@@ -147,7 +154,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["低落与安慰", "安心与意外", "失误与遗忘", "正负评价", "逆接混合评价", "数量与满足度", "强烈感情"],
     noteInsight: "没有请求或命令时，重点往往藏在情绪、失误、评价、数量和强度里；先判断方向，再选择自然回应。",
-    concepts: [
+    concepts: groupedConcepts([
       { cue: "しょんぼり／｜落《お》ち｜込《こ》む／ついてない", signal: "低落、倒霉或连续不顺", direction: "先安慰或追问发生了什么；不要反向夸奖。", variants: ["がっかり", "｜元気《げんき》がない"], example: "どうしたの？｜何《なに》かあった？", exampleMeaning: "怎么了？发生什么了吗？" },
       { cue: "ほっとした／ご｜機嫌《きげん》／まさか", signal: "安心、心情好或难以置信", direction: "确认好消息、表示共同惊讶或询问开心的原因。", variants: ["うそみたい", "ありえない"], example: "｜無事《ぶじ》に｜終《お》わってよかったね。", exampleMeaning: "顺利结束真是太好了。" },
       { cue: "うっかり／しまった／〜ちゃった", signal: "不小心、忘记或搞砸", direction: "确认遗失或遗漏的位置，然后提出补救动作。", variants: ["｜忘《わす》れてきた", "どこかに｜置《お》いてきた"], example: "｜取《と》りに｜戻《もど》れる？", exampleMeaning: "能回去拿吗？" },
@@ -155,7 +162,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
       { cue: "なかなか／｜言《い》うことなし／｜頭《あたま》が｜下《さ》がる", signal: "不错、无可挑剔或佩服", direction: "认同正面评价，并回应努力或成果。", variants: ["｜文句《もんく》なし", "｜見直《みなお》した"], example: "｜本当《ほんとう》、これ｜以上《いじょう》ないね。", exampleMeaning: "真的，已经无可挑剔了。" },
       { cue: "｜食《た》べきれない／｜食《た》べた｜気《き》がしない／｜食《た》べ｜応《ごた》え", signal: "太多、太少或分量足", direction: "先确定数量方向，再回应帮忙、追加或满足感。", variants: ["ぎっしり", "〜だらけ"], example: "この｜量《りょう》じゃ、ちょっと｜足《た》りないね。", exampleMeaning: "这个分量有点不够。" },
       { cue: "〜てたまらない／〜ずにはいられない", signal: "极强感受、愿望或无法克制", direction: "回应程度与原因，不要把它降级成轻微感觉。", variants: ["〜て｜仕方《しかた》ない", "〜てしょうがない"], example: "そんなに｜楽《たの》しみにしているの？", exampleMeaning: "你有那么期待吗？" },
-    ],
+    ], ["情绪与失误", "评价方向", "数量与强烈程度"]),
     traps: [
       { title: "褒贬反转", contrast: "いまいち、物足りない是负面；なかなか、言うことなし是正面。" },
       { title: "程度被削弱", contrast: "さっぱり分からない与たまらない都是强度高，不是“稍微”。" },
@@ -187,7 +194,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["请求帮忙", "请求许可", "主动承担", "邀请与日程", "不得已与婉拒", "称赞感谢追责", "敬语电话店员"],
     noteInsight: "请求、许可、主动承担、邀请、婉拒、感谢与电话应答都要同时判断动作方向和双方身份。",
-    concepts: [
+    concepts: groupedConcepts([
       { cue: "〜ていただけませんか", signal: "礼貌请求对方为自己做", direction: "确认能否承接、对象和期限；不能做时给替代方案。", variants: ["〜てもらえませんか", "〜てくれる？"], example: "｜承知《しょうち》しました。いつまででしょうか。", exampleMeaning: "明白了，请问截止到什么时候？" },
       { cue: "〜てもよろしいですか", signal: "请求许可", direction: "直接允许，或说明不能允许的理由。", variants: ["〜てもいいですか", "〜させていただけませんか"], example: "はい、どうぞ。", exampleMeaning: "好的，请吧。" },
       { cue: "〜ましょうか／｜私《わたし》が〜します", signal: "主动提出帮助", direction: "需要时感谢并接受；不需要时礼貌说明自己可以处理。", variants: ["お｜持《も》ちしましょうか", "｜手伝《てつだ》おうか"], example: "ありがとうございます。お｜願《ねが》いします。", exampleMeaning: "谢谢，那就拜托了。" },
@@ -195,7 +202,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
       { cue: "〜ざるを｜得《え》ない／〜ようがない", signal: "不得不或无法做到", direction: "不得已时表示理解；无方法时讨论替代方案；不要误听成愿望。", variants: ["〜しかない", "〜なくてもいい"], example: "それなら、｜仕方《しかた》ないですね。", exampleMeaning: "那样的话也没办法。" },
       { cue: "ありがとう／｜言《い》っといたよね", signal: "感谢、称赞或追责后的关系回应", direction: "被感谢时回应有帮助很高兴；被追责时道歉补救；被称赞时自然致谢。", variants: ["｜助《たす》かったよ", "よくやったね"], example: "お｜役《やく》に｜立《た》ててよかったです。", exampleMeaning: "能帮上忙真好。" },
       { cue: "｜社長《しゃちょう》がお｜呼《よ》びです／｜戻《もど》りましたら", signal: "商务敬语、电话与转达", direction: "敬语形式不等于动作主体；先判断谁叫谁、谁回电、谁转达。", variants: ["｜少々《しょうしょう》お｜待《ま》ちください", "こちらからお｜電話《でんわ》します"], example: "すぐ｜伺《うかが》います。", exampleMeaning: "我马上过去。", wrong: "把“社长叫你”误成“你去叫社长”。" },
-    ],
+    ], ["请求、许可与帮助", "邀请与不得已", "关系回应与商务身份"]),
     traps: [
       { title: "主动承担听成命令", contrast: "私が運びましょうか是对方提出帮忙，不是要求你去搬。" },
       { title: "敬语表面匹配", contrast: "只选最礼貌的句子会错；动作主体与受益方向必须一致。" },
@@ -227,7 +234,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["不受限制", "不只限于", "只限与最好", "包括与排除", "唯一条件", "条件启动", "引用与传闻"],
     noteInsight: "用“范围圈、条件门、信息来源”三张心智图分别处理包括／排除、启动时点和传闻可信度。",
-    concepts: [
+    concepts: groupedConcepts([
       { cue: "〜を｜問《と》わず／〜に｜関《かか》わらず", signal: "不受该条件限制", direction: "把条件两侧的人或情况都纳入范围。", variants: ["｜年齢《ねんれい》を｜問《と》わず", "｜天候《てんこう》に｜関《かか》わらず"], example: "｜経験《けいけん》がなくてもいいんですね。", exampleMeaning: "没有经验也可以啊。" },
       { cue: "〜に｜限《かぎ》らず", signal: "不只限于前项", direction: "前项仍包括，但范围继续扩大到其他对象。", variants: ["〜だけでなく", "〜はもちろん"], example: "｜初心者《しょしんしゃ》も｜参加《さんか》できるんですね。", exampleMeaning: "初学者也能参加啊。" },
       { cue: "〜に｜限《かぎ》り／〜に｜限《かぎ》る", signal: "只限于／最好是", direction: "に限り画封闭范围；に限る常表达最佳选择，二者不能互换。", variants: ["｜本日《ほんじつ》に｜限《かぎ》り", "｜夏《なつ》は｜冷《つめ》たいものに｜限《かぎ》る"], example: "｜今日《きょう》だけなんですね。", exampleMeaning: "只限今天啊。" },
@@ -235,7 +242,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
       { cue: "〜だけ／〜さえ〜ば／〜すら", signal: "限定唯一对象、最低条件或极端例", direction: "只处理被限定的关键点，不要自动扩大为全部。", variants: ["ここだけ", "｜時間《じかん》さえあれば"], example: "その｜数字《すうじ》だけ｜直《なお》せばいいんですね。", exampleMeaning: "只改那个数字就可以了吧。" },
       { cue: "〜からでないと／〜｜次第《しだい》／〜たうえで", signal: "前置条件与启动时点", direction: "先判断条件是否成立；次第表示一成立就马上行动，うえで表示先完成再决定。", variants: ["｜確認《かくにん》してから", "｜許可《きょか》が｜出《で》たら"], example: "｜結果《けっか》が｜分《わ》かり｜次第《しだい》、｜連絡《れんらく》します。", exampleMeaning: "结果一出来就联系。" },
       { cue: "〜って／〜そうだ／〜らしい", signal: "引用、传闻与未完全确认的信息", direction: "回应信息内容，同时保留来源与确定度；必要时追问是谁说的。", variants: ["〜んだって", "メールに〜と｜書《か》いてある"], example: "そうなんだ。｜誰《だれ》から｜聞《き》いたの？", exampleMeaning: "这样啊，是听谁说的？" },
-    ],
+    ], ["范围是否扩大", "计入、排除与最低条件", "前置条件与信息来源"]),
     traps: [
       { title: "范围方向相反", contrast: "問わず不是只限于；限らず不是排除前项；抜きで不是包括。" },
       { title: "总数重复相加", contrast: "含めて三十個已经把该项算入，不能再加一次。" },
@@ -267,7 +274,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
     ],
     coverage: ["时态反转", "主体反转", "褒贬反转", "数量反转", "条件范围反转", "礼貌误解", "计划事实混淆", "关键词复读"],
     noteInsight: "综合题先做三轮排除：主体是否一致、事实是否反转、回应是否自然，再检查期限、原因与最终结果。",
-    concepts: [
+    concepts: groupedConcepts([
       { cue: "｜切《き》り｜上《あ》げる", signal: "到此为止，不代表全部完成", direction: "确认剩余内容以后继续；排除“已经全部完成”的选项。", variants: ["この｜辺《へん》にする", "｜続《つづ》きは｜明日《あした》"], example: "｜分《わ》かりました。｜続《つづ》きは｜明日《あした》ですね。", exampleMeaning: "明白了，剩下的明天继续吧。" },
       { cue: "やれるだけのことはやった", signal: "准备完成，只等结果", direction: "回应安心、鼓励或等待；不要再要求重复同样准备。", variants: ["あとは｜結果《けっか》を｜待《ま》つだけ", "｜準備《じゅんび》は｜万全《ばんぜん》"], example: "じゃ、あとは｜結果《けっか》を｜待《ま》つだけだね。", exampleMeaning: "那接下来只要等结果了。" },
       { cue: "｜今《いま》すぐ〜ないと｜間《ま》に｜合《あ》わない", signal: "必须立刻行动，但仍可能赶上", direction: "选择马上做的回应，不要误听成“已经来不及”。", variants: ["｜期限《きげん》が｜近《ちか》い", "｜急《いそ》げば｜間《ま》に｜合《あ》う"], example: "じゃ、すぐ｜取《と》りかかろう。", exampleMeaning: "那就马上开始吧。" },
@@ -275,7 +282,7 @@ export const problemFourUnits: ProblemFourUnit[] = [
       { cue: "｜誰《だれ》が → ｜何《なに》を → ｜誰《だれ》のために", signal: "主体箭头检查", direction: "敬语、使役、授受或被动出现时，先画动作箭头，再看回应身份。", variants: ["〜ていただく", "〜させていただく"], example: "「｜社長《しゃちょう》がお｜呼《よ》び」→ ｜自分《じぶん》が｜社長《しゃちょう》のところへ｜行《い》く。", exampleMeaning: "“社长叫你”表示自己去社长那里。" },
       { cue: "｜含《ふく》む？｜除《のぞ》く？｜条件《じょうけん》は｜成立《せいりつ》？", signal: "数量、范围与条件检查", direction: "把总数、排除项与启动条件写成最小式子，再删除方向相反选项。", variants: ["｜全部《ぜんぶ》で", "〜｜次第《しだい》"], example: "「｜含《ふく》めて30」→ ｜合計《ごうけい》は30。", exampleMeaning: "“包括在内共30”表示总计就是30。" },
       { cue: "｜自然《しぜん》に｜次《つぎ》の｜一言《ひとこと》へ｜進《すす》むか", signal: "最后的场景自然度检查", direction: "事实与方向都正确后，再排除不合身份、过度礼貌或只重复原句的选项。", variants: ["キーワード｜復唱《ふくしょう》", "｜場面《ばめん》に｜合《あ》わない"], example: "｜正《ただ》しい｜返事《へんじ》は、｜会話《かいわ》を｜一歩《いっぽ》｜進《すす》める。", exampleMeaning: "正确回应会让对话向前一步。" },
-    ],
+    ], ["完成状态与行动时机", "反效果与主体箭头", "范围公式与场景自然度"]),
     traps: [
       { title: "时态／未发生反转", contrast: "ところだった、ばよかった、ずに済んだ先写最终事实，再看情绪。" },
       { title: "主体／敬语反转", contrast: "礼貌形式只能说明关系，不能替代动作箭头。" },

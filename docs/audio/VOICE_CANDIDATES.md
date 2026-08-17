@@ -1,6 +1,15 @@
 # AivisHub voice candidate review
 
-Reviewed on 2026-08-17. This is a benchmark shortlist, not a final production selection.
+Reviewed on 2026-08-17. The benchmark shortlist is preserved below. The production selection is now `female-morioki` + `male-fumifumi`.
+
+## Production decision
+
+| Alias | Config key | Decision | Evidence |
+| --- | --- | --- | --- |
+| `female-neutral` | `female-morioki` | Primary | Learner explicitly marked it **优先** after listening to the question, formal sentence, and kanji/pause samples; visible scores include clarity 5/5 and neutrality 4/5. |
+| `male-neutral` | `male-fumifumi` | Secondary | Neutral, soft conversational counterpart from the reviewed ACML set; used for required male/female listening diversity without introducing a character-heavy style. |
+
+Both choices use ACML 1.0, remain configurable, and are assigned deterministically. An unreviewed candidate is not silently substituted during generation because production scopes require `productionApproved: true`.
 
 ## License gate
 
@@ -50,4 +59,4 @@ Use `/n2/audio-lab` and compare the same three lines at 1.0× first, then 0.8× 
 4. Phrasing: are commas, question intonation, compound boundaries and sentence endings plausible?
 5. Stability: does the same voice remain consistent across informal, formal and kanji-heavy lines?
 
-The final `female-neutral` and `male-neutral` aliases should be assigned only after the human listening decision. Until then every candidate keeps `productionApproved: false`.
+The final aliases are recorded in `config/audio-voices.json` under `productionSelection`. Only those two candidates have `productionApproved: true`.

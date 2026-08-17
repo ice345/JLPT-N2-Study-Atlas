@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageFooter, SiteHeader } from "@/app/components/site-header";
+import { N2ActionHome } from "@/app/components/n2-action-home";
 
 const tracks = [
   {
@@ -58,6 +59,8 @@ export default function N2Home() {
         </div>
       </section>
 
+      <N2ActionHome />
+
       <section className="coverage-panel page-wrap">
         <div><span>PROBLEM TYPES</span><strong>19</strong><p>语言 9 · 阅读 5 · 听力 5</p></div>
         <div><span>LANGUAGE UNITS</span><strong>40</strong><p>每课含例句、陷阱与微训练</p></div>
@@ -96,7 +99,7 @@ export default function N2Home() {
           </ol>
         </div>
         <div className="quick-links">
-          <Link href="/n2/vocabulary"><small>11,568 WORDS · N1–N5</small><strong>分级遮挡回忆词库</strong><span>进入 →</span></Link>
+          <Link href="/vocabulary"><small>11,568 WORDS · N1–N5</small><strong>分级遮挡回忆词库</strong><span>进入 →</span></Link>
           <Link href="/n2/plan"><small>STUDY STORY</small><strong>我的备考经历</strong><span>阅读与填写 →</span></Link>
           <Link href="/n2/review"><small>TODAY REVIEW</small><strong>继续今日复习</strong><span>开始 →</span></Link>
         </div>

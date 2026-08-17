@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
-export function SiteHeader() {
+export function SiteHeader({ variant = "n2" }: { variant?: "global" | "n2" }) {
   const [open, setOpen] = useState(false);
-  const links = [
-    ["学习地图", "/n2"], ["练习台", "/n2/practice"], ["今日复习", "/n2/review"], ["学习进度", "/n2/dashboard"], ["语言知识", "/n2/language"], ["阅读", "/n2/reading"], ["听力", "/n2/listening"], ["分级词库", "/n2/vocabulary"], ["我的经历", "/n2/plan"], ["资料索引", "/n2/resources"], ["检索", "/n2/search"],
-  ];
+  const [group, setGroup] = useState<"study" | "more" | null>(null);
+  const globalLinks = [["首页", "/"], ["JLPT 等级", "/#jlpt-levels"], ["N2 学习系统", "/n2"], ["N1–N5 词库", "/vocabulary"], ["关于", "/about"], ["隐私", "/privacy"]];
   return (
     <header className="site-header">
       <Link className="wordmark" href="/">
@@ -15,8 +14,16 @@ export function SiteHeader() {
         JLPT <em>Study Garden</em>
       </Link>
       <button className="menu-toggle" type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="site-navigation">{open ? "关闭" : "菜单"}</button>
-      <nav className={open ? "main-nav is-open" : "main-nav"} id="site-navigation" aria-label="主导航">
-        {links.map(([label, href]) => <Link href={href} key={href} onClick={() => setOpen(false)}>{label}</Link>)}
+      <nav className={open ? "main-nav is-open" : "main-nav"} id="site-navigation" aria-label={variant === "global" ? "全站导航" : "N2 学习导航"}>
+        {variant === "global" ? globalLinks.map(([label, href]) => <Link href={href} key={href} onClick={() => setOpen(false)}>{label}</Link>) : <>
+          <Link href="/n2" onClick={() => setOpen(false)}>学习地图</Link>
+          <div className="nav-group"><button aria-expanded={group === "study"} onClick={() => setGroup((value) => value === "study" ? null : "study")} type="button">学习⌄</button><div className={group === "study" ? "nav-popover is-open" : "nav-popover"}><Link href="/n2/language" onClick={() => setOpen(false)}>语言知识</Link><Link href="/n2/reading" onClick={() => setOpen(false)}>阅读</Link><Link href="/n2/listening" onClick={() => setOpen(false)}>听力</Link></div></div>
+          <Link href="/n2/practice" onClick={() => setOpen(false)}>练习台</Link>
+          <Link href="/n2/review" onClick={() => setOpen(false)}>今日复习</Link>
+          <Link href="/n2/dashboard" onClick={() => setOpen(false)}>学习进度</Link>
+          <Link href="/vocabulary" onClick={() => setOpen(false)}>分级词库</Link>
+          <div className="nav-group"><button aria-expanded={group === "more"} onClick={() => setGroup((value) => value === "more" ? null : "more")} type="button">更多⌄</button><div className={group === "more" ? "nav-popover is-open" : "nav-popover"}><Link href="/n2/plan" onClick={() => setOpen(false)}>备考经历</Link><Link href="/n2/resources" onClick={() => setOpen(false)}>资料索引</Link><Link href="/n2/search" onClick={() => setOpen(false)}>站内检索</Link></div></div>
+        </>}
       </nav>
     </header>
   );

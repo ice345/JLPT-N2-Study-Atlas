@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function PrivacyPage() {
   const user = await getChatGPTUser();
   return <main className="app-page privacy-page">
-    <SiteHeader />
+    <SiteHeader variant="global" />
     <div className="page-wrap">
       <Breadcrumbs items={[{ label: "首页", href: "/" }, { label: "隐私与数据" }]} />
       <section className="privacy-hero">

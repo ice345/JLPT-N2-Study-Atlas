@@ -107,8 +107,14 @@ const legacyPracticeQuestions: Omit<PracticeQuestion, "problem" | "relatedConten
 ];
 
 function diagnosticQuestionsFromCourse(definition: ProblemDefinition): PracticeQuestion[] {
-  return definition.units.slice(0, 3).map((unit, index) => {
-    const drill = unit.drills[index % unit.drills.length];
+  const lastIndex = Math.max(0, definition.units.length - 1);
+  const selectedUnitIndexes = [...new Set([0, Math.floor(lastIndex / 2), lastIndex])];
+  for (let index = 0; selectedUnitIndexes.length < 3 && index < definition.units.length; index += 1) {
+    if (!selectedUnitIndexes.includes(index)) selectedUnitIndexes.push(index);
+  }
+  return selectedUnitIndexes.slice(0, 3).map((unitIndex, index) => {
+    const unit = definition.units[unitIndex];
+    const drill = unit.drills[(unitIndex + index) % unit.drills.length];
     return {
       id: `diagnostic-${definition.domain}-${definition.slug}-${index + 1}`,
       area: definition.domain,
@@ -274,20 +280,63 @@ export const diagnosticProblemKeys = [
   "q6", "q7", "q8", "q9",
 ];
 
-export function diagnosticQuestionsFor(count: number) {
+export const diagnosticBlueprints = {
+  quick: { count: 30, label: "快速诊断", coverage: "19 个题型全部覆盖；语言、阅读、听力各 10 题" },
+  standard: { count: 38, label: "标准诊断", coverage: "每个题型 2 题，用于比较同题型内的稳定性" },
+  deep: { count: 57, label: "深入诊断", coverage: "每个题型 3 题，覆盖 57 个能力样本" },
+} as const;
+
+function seededRandom(seed: string) {
+  let state = 2166136261;
+  for (const character of seed) {
+    state ^= character.codePointAt(0) ?? 0;
+    state = Math.imul(state, 16777619);
+  }
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ value >>> 15, value | 1);
+    value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+    return ((value ^ value >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function shuffled<T>(items: T[], seed: string) {
+  const result = [...items];
+  const random = seededRandom(seed);
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
+export function diagnosticQuestionsFor(count: number, seed = "study-garden-baseline") {
   const safeCount = Math.min(57, Math.max(30, Math.round(count)));
   const grouped = new Map<string, PracticeQuestion[]>();
   for (const key of diagnosticProblemKeys) grouped.set(key, []);
   for (const question of diagnosticQuestions) grouped.get(question.problem)?.push(question);
-
-  const result: PracticeQuestion[] = [];
-  for (let round = 0; round < 3 && result.length < safeCount; round += 1) {
-    for (const problem of diagnosticProblemKeys) {
-      const question = grouped.get(problem)?.[round];
-      if (question && result.length < safeCount) result.push(question);
-    }
+  for (const problem of diagnosticProblemKeys) {
+    grouped.set(problem, shuffled(grouped.get(problem) ?? [], `${seed}:${problem}`));
   }
-  return result;
+
+  const selected: PracticeQuestion[] = diagnosticProblemKeys.flatMap((problem) => grouped.get(problem)?.slice(0, 1) ?? []);
+  const readingProblems = diagnosticProblemKeys.filter((problem) => problem.startsWith("q1") && Number(problem.slice(1)) >= 10);
+  const listeningProblems = diagnosticProblemKeys.filter((problem) => problem.startsWith("problem-"));
+  const languageProblems = diagnosticProblemKeys.filter((problem) => !readingProblems.includes(problem) && !listeningProblems.includes(problem));
+  const secondRoundOrder = [
+    ...shuffled(readingProblems, `${seed}:reading-second`),
+    ...shuffled(listeningProblems, `${seed}:listening-second`),
+    ...shuffled(languageProblems, `${seed}:language-second`),
+  ];
+  const laterRoundOrder = shuffled(diagnosticProblemKeys, `${seed}:third`);
+  for (const problem of [...secondRoundOrder, ...laterRoundOrder]) {
+    if (selected.length >= safeCount) break;
+    const alreadySelected = selected.filter((question) => question.problem === problem).length;
+    const next = grouped.get(problem)?.[alreadySelected];
+    if (next) selected.push(next);
+  }
+  return shuffled(selected, `${seed}:question-order`);
 }
 
 export const practiceAreaNames: Record<PracticeArea, string> = {

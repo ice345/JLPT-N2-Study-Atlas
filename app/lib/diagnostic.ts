@@ -25,6 +25,8 @@ export type DiagnosticReport = {
   readinessLabel: string;
   confidence: DiagnosticConfidence;
   confidenceLabel: string;
+  confidenceNote: string;
+  scoreInterval: [number, number];
   coveredProblems: number;
   totalProblems: number;
   domainScores: DiagnosticScore[];
@@ -42,9 +44,9 @@ const readinessLabels: Record<DiagnosticBand, string> = {
 };
 
 const confidenceLabels: Record<DiagnosticConfidence, string> = {
-  low: "参考度较低",
+  low: "初步参考",
   medium: "参考度中等",
-  high: "参考度较高",
+  high: "站内样本较完整",
 };
 
 function percentage(correct: number, total: number) {
@@ -87,9 +89,22 @@ export function analyzeDiagnostic(
         : percent >= 40 ? "developing"
           : "foundation";
   const coveredProblems = new Set(questions.map((question) => question.problem)).size;
-  const confidence: DiagnosticConfidence = coveredProblems < diagnosticProblemKeys.length || questions.length < 30
-    ? "low"
-    : questions.length >= 50 ? "high" : "medium";
+  const samplesByProblem = new Map<string, number>();
+  for (const question of questions) samplesByProblem.set(question.problem, (samplesByProblem.get(question.problem) ?? 0) + 1);
+  const minimumProblemSamples = Math.min(...diagnosticProblemKeys.map((key) => samplesByProblem.get(key) ?? 0));
+  const confidence: DiagnosticConfidence = coveredProblems < diagnosticProblemKeys.length || minimumProblemSamples < 2
+    ? "low" : minimumProblemSamples >= 3 ? "high" : "medium";
+  const proportion = questions.length ? correct / questions.length : 0;
+  const margin = questions.length ? 1.96 * Math.sqrt((proportion * (1 - proportion)) / questions.length) : 0;
+  const scoreInterval: [number, number] = [
+    Math.max(0, Math.round((proportion - margin) * 100)),
+    Math.min(100, Math.round((proportion + margin) * 100)),
+  ];
+  const confidenceNote = confidence === "high"
+    ? "每个题型有 3 个站内样本，适合安排较细的复习优先级。"
+    : confidence === "medium"
+      ? "每个题型有 2 个站内样本，可比较题型表现；仍建议用后续练习持续校准。"
+      : "所有题型都已触达，但部分题型只有 1 个样本；先把结果当作学习起点。";
 
   const domainScores = scoreGroups(
     questions,
@@ -125,6 +140,8 @@ export function analyzeDiagnostic(
     readinessLabel: readinessLabels[readiness],
     confidence,
     confidenceLabel: confidenceLabels[confidence],
+    confidenceNote,
+    scoreInterval,
     coveredProblems,
     totalProblems: diagnosticProblemKeys.length,
     domainScores,

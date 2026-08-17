@@ -29,6 +29,8 @@ export const studyEvents = sqliteTable("study_events", {
   type: text("type").notNull(),
   contentType: text("content_type").notNull(),
   contentId: text("content_id").notNull(),
+  problemId: text("problem_id"),
+  unitId: text("unit_id"),
   domain: text("domain").notNull(),
   skill: text("skill"),
   rating: text("rating"),
@@ -41,6 +43,8 @@ export const studyEvents = sqliteTable("study_events", {
   index("study_events_user_created_idx").on(table.userId, table.createdAt),
   index("study_events_user_received_idx").on(table.userId, table.receivedAt),
   index("study_events_user_content_idx").on(table.userId, table.contentId),
+  index("study_events_user_problem_idx").on(table.userId, table.problemId),
+  index("study_events_user_unit_idx").on(table.userId, table.unitId),
 ]);
 
 export const studyProfiles = sqliteTable("study_profiles", {
@@ -56,6 +60,7 @@ export const practiceSessions = sqliteTable("practice_sessions", {
   mode: text("mode").notNull(),
   area: text("area").notNull(),
   questionIds: text("question_ids").notNull(),
+  seed: text("seed"),
   answers: text("answers").notNull().default("{}"),
   startedAt: text("started_at").notNull(),
   completedAt: text("completed_at"),

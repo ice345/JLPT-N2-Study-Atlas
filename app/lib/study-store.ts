@@ -3,6 +3,7 @@ import type { VocabularyLevel } from "@/app/lib/vocabulary-types";
 
 export type StudyRating = "again" | "hard" | "good";
 export type MasteryState = "new" | "learning" | "review" | "mastered";
+export type CourseCompletionStatus = "not_started" | "in_progress" | "completed";
 export type StudyEventType =
   | "lesson_started"
   | "lesson_completed"
@@ -10,7 +11,8 @@ export type StudyEventType =
   | "vocab_review"
   | "listening_drill"
   | "practice_answer"
-  | "diagnostic_answer";
+  | "diagnostic_answer"
+  | "study_activity";
 export type StudyContentType =
   | "problem"
   | "concept"
@@ -27,6 +29,8 @@ export type StudyEvent = {
   type: StudyEventType;
   contentType: StudyContentType;
   contentId: string;
+  problemId?: string;
+  unitId?: string;
   domain: StudyDomain;
   skill?: string;
   rating?: StudyRating;
@@ -43,11 +47,15 @@ export type StudyEventFilter = {
   contentType?: StudyContentType;
   domain?: StudyDomain;
   contentId?: string;
+  problemId?: string;
+  unitId?: string;
   unsyncedOnly?: boolean;
 };
 
 export type ReviewState = {
   contentId: string;
+  problemId?: string;
+  unitId?: string;
   contentType: StudyContentType;
   level?: VocabularyLevel;
   domain: StudyDomain;
@@ -57,6 +65,17 @@ export type ReviewState = {
   reviewCount: number;
   lastReviewedAt: string;
   nextReviewAt: string;
+};
+
+export type CourseCompletionState = {
+  contentId: string;
+  problemId: string;
+  unitId?: string;
+  domain: StudyDomain;
+  status: CourseCompletionStatus;
+  startedAt?: string;
+  completedAt?: string;
+  updatedAt: string;
 };
 
 export type ReviewStateFilter = {
@@ -72,6 +91,8 @@ export type LocalPracticeSession = {
   mode: "diagnostic" | "practice";
   area: PracticeArea | "all";
   questionIds: string[];
+  seed?: string;
+  activeSeconds?: number;
   answers: Record<string, number>;
   startedAt: string;
   completedAt?: string | null;
@@ -91,6 +112,7 @@ export interface StudyStore {
   saveReviewState(state: ReviewState): Promise<void>;
   getReviewState(contentId: string): Promise<ReviewState | undefined>;
   getReviewStates(filter?: ReviewStateFilter | VocabularyLevel): Promise<ReviewState[]>;
+  getCourseCompletions(): Promise<CourseCompletionState[]>;
   saveSession(session: LocalPracticeSession): Promise<void>;
   getSession(id: string): Promise<LocalPracticeSession | undefined>;
   getActiveSession(): Promise<LocalPracticeSession | null>;
@@ -104,7 +126,7 @@ export interface StudyStore {
 }
 
 const databaseName = "jlpt-study-garden";
-const databaseVersion = 2;
+const databaseVersion = 3;
 const eventStoreName = "study_events";
 const reviewStoreName = "review_states";
 const metadataStoreName = "metadata";
@@ -143,6 +165,8 @@ function openDatabase() {
         ensureIndex(events, "createdAt", "createdAt");
         ensureIndex(events, "contentId", "contentId");
         ensureIndex(events, "domain", "domain");
+        ensureIndex(events, "problemId", "problemId");
+        ensureIndex(events, "unitId", "unitId");
       }
 
       const reviews = database.objectStoreNames.contains(reviewStoreName)
@@ -186,6 +210,8 @@ function matchesEvent(event: StudyEvent, filter?: StudyEventFilter) {
   if (filter.contentType && event.contentType !== filter.contentType) return false;
   if (filter.domain && event.domain !== filter.domain) return false;
   if (filter.contentId && event.contentId !== filter.contentId) return false;
+  if (filter.problemId && event.problemId !== filter.problemId) return false;
+  if (filter.unitId && event.unitId !== filter.unitId) return false;
   if (filter.unsyncedOnly && event.syncedAt) return false;
   return true;
 }
@@ -214,6 +240,7 @@ class IndexedDbStudyStore implements StudyStore {
     await completed;
     database.close();
     return events
+      .map(enrichStudyEventHierarchy)
       .filter((event) => matchesEvent(event, filter))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
@@ -234,7 +261,7 @@ class IndexedDbStudyStore implements StudyStore {
     const state = await requestResult<ReviewState | undefined>(transaction.objectStore(reviewStoreName).get(contentId));
     await completed;
     database.close();
-    return state;
+    return state ? enrichReviewStateHierarchy(state) : undefined;
   }
 
   async getReviewStates(filter?: ReviewStateFilter | VocabularyLevel) {
@@ -245,7 +272,7 @@ class IndexedDbStudyStore implements StudyStore {
     const states = await requestResult<ReviewState[]>(transaction.objectStore(reviewStoreName).getAll());
     await completed;
     database.close();
-    return states.filter((state) => {
+    return states.map(enrichReviewStateHierarchy).filter((state) => {
       if (!normalizedFilter) return true;
       if (normalizedFilter.level && state.level !== normalizedFilter.level) return false;
       if (normalizedFilter.contentType && state.contentType !== normalizedFilter.contentType) return false;
@@ -254,6 +281,10 @@ class IndexedDbStudyStore implements StudyStore {
       if (normalizedFilter.dueBefore && state.nextReviewAt > normalizedFilter.dueBefore) return false;
       return true;
     });
+  }
+
+  async getCourseCompletions() {
+    return courseCompletionsFromEvents(await this.getEvents());
   }
 
   async saveSession(session: LocalPracticeSession) {
@@ -381,14 +412,14 @@ export async function makeStudyEvent(
 ) {
   const store = getStudyStore();
   const clientEventId = createStudyId("event");
-  return {
+  return enrichStudyEventHierarchy({
     ...input,
     id: clientEventId,
     clientEventId,
     deviceId: await store.getDeviceId(),
     createdAt: input.createdAt ?? new Date().toISOString(),
     syncedAt: null,
-  } satisfies StudyEvent;
+  } satisfies StudyEvent);
 }
 
 export async function recordStudyEvent(input: Parameters<typeof makeStudyEvent>[0]) {
@@ -398,7 +429,7 @@ export async function recordStudyEvent(input: Parameters<typeof makeStudyEvent>[
 }
 
 export function makeReviewState(
-  input: Pick<ReviewState, "contentId" | "contentType" | "domain"> & Partial<Pick<ReviewState, "level" | "skill">>,
+  input: Pick<ReviewState, "contentId" | "contentType" | "domain"> & Partial<Pick<ReviewState, "level" | "skill" | "problemId" | "unitId">>,
   rating: StudyRating,
   previous?: ReviewState,
   reviewedAt = new Date(),
@@ -434,7 +465,7 @@ export function makeVocabularyReviewState(
 
 export async function recordReview(
   eventType: Extract<StudyEventType, "concept_review" | "vocab_review" | "listening_drill">,
-  input: Pick<ReviewState, "contentId" | "contentType" | "domain"> & Partial<Pick<ReviewState, "level" | "skill">>,
+  input: Pick<ReviewState, "contentId" | "contentType" | "domain"> & Partial<Pick<ReviewState, "level" | "skill" | "problemId" | "unitId">>,
   rating: StudyRating,
   previous?: ReviewState,
 ) {
@@ -447,6 +478,8 @@ export async function recordReview(
     contentId: input.contentId,
     domain: input.domain,
     skill: input.skill,
+    problemId: input.problemId,
+    unitId: input.unitId,
     rating,
     createdAt: reviewedAt.toISOString(),
   });
@@ -483,6 +516,8 @@ export async function rebuildReviewStatesFromEvents(events?: StudyEvent[]) {
       domain: event.domain,
       skill: event.skill,
       level: levelMatch?.[1] as VocabularyLevel | undefined,
+      problemId: event.problemId,
+      unitId: event.unitId,
     };
     rebuilt.set(
       event.contentId,
@@ -491,4 +526,60 @@ export async function rebuildReviewStatesFromEvents(events?: StudyEvent[]) {
   }
   await Promise.all([...rebuilt.values()].map((state) => store.saveReviewState(state)));
   return [...rebuilt.values()];
+}
+
+function inferredHierarchy(contentId: string, domain: StudyDomain) {
+  const diagnostic = contentId.match(/^diagnostic-(?:language|reading|listening)-(q\d+|problem-\d+)-/u);
+  if (diagnostic) return { problemId: diagnostic[1] };
+  const reading = contentId.match(/^reading-(q1[0-4])$/u);
+  if (reading) return { problemId: reading[1], unitId: contentId };
+  const languageUnit = contentId.match(/^(q[1-9])-/u);
+  if (domain === "language" && languageUnit) return { problemId: languageUnit[1], unitId: contentId };
+  const listeningUnit = contentId.match(/^p([1-5])-/u);
+  if (domain === "listening" && listeningUnit) return { problemId: `problem-${listeningUnit[1]}`, unitId: contentId };
+  if (/^q(?:[1-9]|1[0-4])$/u.test(contentId)) return { problemId: contentId };
+  if (/^problem-[1-5]$/u.test(contentId)) return { problemId: contentId };
+  return {};
+}
+
+export function enrichStudyEventHierarchy(event: StudyEvent): StudyEvent {
+  const inferred = inferredHierarchy(event.contentId, event.domain);
+  return {
+    ...event,
+    problemId: event.problemId ?? inferred.problemId,
+    unitId: event.unitId ?? inferred.unitId,
+  };
+}
+
+function enrichReviewStateHierarchy(state: ReviewState): ReviewState {
+  const inferred = inferredHierarchy(state.contentId, state.domain);
+  return {
+    ...state,
+    problemId: state.problemId ?? inferred.problemId,
+    unitId: state.unitId ?? inferred.unitId,
+  };
+}
+
+export function courseCompletionsFromEvents(events: StudyEvent[]) {
+  const states = new Map<string, CourseCompletionState>();
+  for (const rawEvent of [...events].sort((left, right) => left.createdAt.localeCompare(right.createdAt))) {
+    if (rawEvent.type !== "lesson_started" && rawEvent.type !== "lesson_completed") continue;
+    const event = enrichStudyEventHierarchy(rawEvent);
+    const problemId = event.problemId;
+    if (!problemId) continue;
+    const contentId = event.unitId ?? event.contentId;
+    const previous = states.get(contentId);
+    const completed = previous?.status === "completed" || event.type === "lesson_completed";
+    states.set(contentId, {
+      contentId,
+      problemId,
+      unitId: event.unitId,
+      domain: event.domain,
+      status: completed ? "completed" : "in_progress",
+      startedAt: previous?.startedAt ?? event.createdAt,
+      completedAt: completed ? previous?.completedAt ?? event.createdAt : undefined,
+      updatedAt: event.createdAt,
+    });
+  }
+  return [...states.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
 }

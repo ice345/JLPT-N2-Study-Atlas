@@ -1,0 +1,25 @@
+{
+  "capturedAt": "2026-08-17",
+  "deduplicationReasons": [],
+  "problems": {
+    "q1": { "concepts": 16, "variants": 0, "examples": 16, "traps": 8, "drills": 12 },
+    "q2": { "concepts": 12, "variants": 2, "examples": 12, "traps": 6, "drills": 9 },
+    "q3": { "concepts": 16, "variants": 2, "examples": 16, "traps": 8, "drills": 12 },
+    "q4": { "concepts": 20, "variants": 0, "examples": 20, "traps": 10, "drills": 15 },
+    "q5": { "concepts": 16, "variants": 0, "examples": 16, "traps": 8, "drills": 12 },
+    "q6": { "concepts": 20, "variants": 0, "examples": 20, "traps": 10, "drills": 15 },
+    "q7": { "concepts": 24, "variants": 0, "examples": 24, "traps": 12, "drills": 18 },
+    "q8": { "concepts": 16, "variants": 0, "examples": 16, "traps": 8, "drills": 12 },
+    "q9": { "concepts": 20, "variants": 0, "examples": 20, "traps": 10, "drills": 15 },
+    "q10": { "concepts": 5, "variants": 0, "examples": 5, "traps": 4, "drills": 5 },
+    "q11": { "concepts": 6, "variants": 0, "examples": 6, "traps": 4, "drills": 5 },
+    "q12": { "concepts": 4, "variants": 0, "examples": 4, "traps": 4, "drills": 5 },
+    "q13": { "concepts": 5, "variants": 0, "examples": 4, "traps": 4, "drills": 5 },
+    "q14": { "concepts": 6, "variants": 0, "examples": 4, "traps": 4, "drills": 5 },
+    "problem-1": { "concepts": 30, "variants": 60, "examples": 30, "traps": 18, "drills": 24 },
+    "problem-2": { "concepts": 30, "variants": 60, "examples": 30, "traps": 18, "drills": 24 },
+    "problem-3": { "concepts": 16, "variants": 0, "examples": 16, "traps": 9, "drills": 12 },
+    "problem-4": { "concepts": 42, "variants": 84, "examples": 42, "traps": 25, "drills": 36 },
+    "problem-5": { "concepts": 16, "variants": 0, "examples": 16, "traps": 10, "drills": 12 }
+  }
+}

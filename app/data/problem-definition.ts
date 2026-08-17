@@ -1,6 +1,8 @@
 import type { StudyDomain } from "@/app/lib/study-store";
 
 export type StudyConcept = {
+  groupId?: string;
+  groupTitle?: string;
   cue: string;
   signal: string;
   direction: string;

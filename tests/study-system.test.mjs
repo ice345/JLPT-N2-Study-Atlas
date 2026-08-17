@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
-import { makeReviewState } from "../app/lib/study-store.ts";
+import { courseCompletionsFromEvents, makeReviewState } from "../app/lib/study-store.ts";
 import { decryptCredential, encryptCredential } from "../app/lib/ai/credentials.ts";
 import { aiProviderDefaults, validateProviderInput } from "../app/lib/ai/provider.ts";
+import { studyPlanJsonSchema, studyPlanSystemPrompt } from "../app/lib/ai/prompts.ts";
 import { problemFourUnits } from "../app/data/problem-four-course.ts";
 import { problemOneUnits, problemTwoUnits } from "../app/data/problem-one-two-course.ts";
 
@@ -28,6 +29,19 @@ test("review scheduling uses the unified mastery states", () => {
   assert.equal(thirdGood.reviewCount, 3);
 });
 
+test("course completion stays independent from mastery ratings and keeps legacy hierarchy", () => {
+  const base = { id: "event-1", clientEventId: "event-1", deviceId: "device-1", contentType: "concept", contentId: "p4-unit-01", domain: "listening", createdAt: "2026-08-17T00:00:00.000Z" };
+  const states = courseCompletionsFromEvents([
+    { ...base, type: "lesson_started" },
+    { ...base, id: "event-2", clientEventId: "event-2", type: "concept_review", rating: "good", createdAt: "2026-08-17T00:01:00.000Z" },
+  ]);
+  assert.equal(states.length, 1);
+  assert.equal(states[0].problemId, "problem-4");
+  assert.equal(states[0].status, "in_progress");
+  const completed = courseCompletionsFromEvents([...states.length ? [{ ...base, type: "lesson_started" }] : [], { ...base, id: "event-3", clientEventId: "event-3", type: "lesson_completed", createdAt: "2026-08-17T00:02:00.000Z" }]);
+  assert.equal(completed[0].status, "completed");
+});
+
 test("problem four preserves the audited note coverage inside six learning-first units", () => {
   assert.equal(problemFourUnits.length, 6);
   assert.deepEqual(problemFourUnits.map((unit) => unit.number), ["01", "02", "03", "04", "05", "06"]);
@@ -36,11 +50,18 @@ test("problem four preserves the audited note coverage inside six learning-first
     assert.equal(unit.summary.length, 3, unit.id);
     assert.equal(unit.drills.length, 6, unit.id);
     assert.equal(unit.concepts.length, 7, unit.id);
+    assert.equal(new Set(unit.concepts.map((concept) => concept.groupId)).size, 3, unit.id);
+    assert.ok(unit.concepts.every((concept) => concept.groupTitle), unit.id);
     assert.ok(unit.coverage.length >= 7, unit.id);
     assert.ok(unit.noteInsight.length > 30, unit.id);
     assert.ok(unit.estimatedMinutes >= 5 && unit.estimatedMinutes <= 12, unit.id);
     assert.ok(unit.sourceRefs.length > 0, unit.id);
   }
+  assert.equal(problemFourUnits.reduce((sum, unit) => sum + unit.concepts.length, 0), 42);
+  assert.equal(problemFourUnits.reduce((sum, unit) => sum + unit.concepts.reduce((count, concept) => count + (concept.variants?.length ?? 0), 0), 0), 84);
+  assert.equal(problemFourUnits.reduce((sum, unit) => sum + unit.concepts.filter((concept) => concept.example).length, 0), 42);
+  assert.equal(problemFourUnits.reduce((sum, unit) => sum + unit.traps.length, 0), 25);
+  assert.equal(problemFourUnits.reduce((sum, unit) => sum + unit.drills.length, 0), 36);
 });
 
 test("problems one and two each have six independent course routes with full mixed practice", () => {
@@ -112,6 +133,34 @@ test("AI provider validation permits OpenAI and blocks local or private endpoint
   assert.match(providerSource, /AbortSignal\.timeout\(15_000\)/u);
 });
 
+test("AI interpretation schema keeps scoring deterministic and catalog targets constrained", () => {
+  assert.equal(studyPlanJsonSchema.additionalProperties, false);
+  assert.deepEqual(studyPlanJsonSchema.required, ["summary", "strengths", "risks", "priorities", "needsMoreEvidence", "next7Days"]);
+  assert.equal(studyPlanJsonSchema.properties.next7Days.minItems, 7);
+  assert.equal(studyPlanJsonSchema.properties.next7Days.maxItems, 7);
+  assert.match(studyPlanSystemPrompt, /不得重新计算/u);
+  assert.match(studyPlanSystemPrompt, /allowedTargets/u);
+  const routeSource = fs.readFileSync(new URL("../app/api/study/ai-plan/route.ts", import.meta.url), "utf8");
+  assert.match(routeSource, /lockedEvidence: evidence/u);
+  assert.match(routeSource, /normaliseAiDiagnosticInterpretation/u);
+  assert.doesNotMatch(routeSource, /recentAttempts:/u);
+});
+
+test("Problem 4 production audio is complete, deterministic, and split across approved voices", () => {
+  const manifest = JSON.parse(fs.readFileSync(new URL("../public/audio/manifest.json", import.meta.url), "utf8"));
+  const items = Object.values(manifest.items).filter((item) => item.scope === "p4");
+  assert.equal(items.length, 60);
+  assert.equal(items.filter((item) => item.category === "lesson-drill").length, 36);
+  assert.equal(items.filter((item) => item.category === "response-card").length, 24);
+  assert.equal(items.filter((item) => item.voice === "female-morioki").length, 30);
+  assert.equal(items.filter((item) => item.voice === "male-fumifumi").length, 30);
+  for (const item of items) {
+    assert.equal(item.format, "audio/webm; codecs=opus");
+    assert.ok(item.duration > 0);
+    assert.ok(fs.existsSync(new URL(`../public${item.src}`, import.meta.url)), item.src);
+  }
+});
+
 test("saved AI credentials are randomized AES-GCM ciphertext and decrypt correctly", async () => {
   const masterKey = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
   const plaintext = "sk-personal-secret";
@@ -127,14 +176,17 @@ test("D1 migrations create the internal identity and idempotent event tables", (
   const migrationZero = new URL("../drizzle/0000_same_veda.sql", import.meta.url).pathname;
   const migrationOne = new URL("../drizzle/0001_many_fenris.sql", import.meta.url).pathname;
   const migrationTwo = new URL("../drizzle/0002_hesitant_killmonger.sql", import.meta.url).pathname;
+  const migrationThree = new URL("../drizzle/0003_outstanding_miracleman.sql", import.meta.url).pathname;
   const output = execFileSync(
     "sqlite3",
-    [":memory:", `.read ${migrationZero}`, `.read ${migrationOne}`, `.read ${migrationTwo}`, ".tables", "PRAGMA foreign_key_check;"],
+    [":memory:", `.read ${migrationZero}`, `.read ${migrationOne}`, `.read ${migrationTwo}`, `.read ${migrationThree}`, ".tables", "PRAGMA table_info(study_events);", "PRAGMA foreign_key_check;"],
     { encoding: "utf8" },
   );
   assert.match(output, /users/u);
   assert.match(output, /auth_identities/u);
   assert.match(output, /study_events/u);
   assert.match(output, /ai_credentials/u);
+  assert.match(output, /problem_id/u);
+  assert.match(output, /unit_id/u);
   assert.doesNotMatch(output, /foreign key constraint failed/iu);
 });

@@ -1,8 +1,15 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { apiUnauthorized, jsonError, requireApiUser } from "@/app/lib/api";
 import { decryptCredential } from "@/app/lib/ai/credentials";
+import {
+  buildDiagnosticEvidence,
+  makeFallbackInterpretation,
+  normaliseAiDiagnosticInterpretation,
+  type AiDiagnosticInterpretation,
+} from "@/app/lib/ai/diagnostic-interpretation";
 import { requestResponsesApi, validateProviderInput, type ValidatedAiProvider } from "@/app/lib/ai/provider";
 import { studyPlanJsonSchema, studyPlanSystemPrompt } from "@/app/lib/ai/prompts";
+import { problemCatalog, unitCatalog } from "@/app/lib/learning-catalog";
 import { makeRulePlan, type AttemptRecord } from "@/app/lib/study";
 import { getDb, getRuntimeEnv } from "@/db";
 import { aiCredentials, aiStudyPlans, practiceAttempts, studyEvents, studyProfiles } from "@/db/schema";
@@ -12,6 +19,7 @@ type NarrativePlan = {
   analysis: string;
   weeklyPlan: string[];
   reviewRule: string;
+  interpretation: AiDiagnosticInterpretation;
 };
 
 type PlanRequest = {
@@ -23,23 +31,19 @@ type PlanRequest = {
   };
 };
 
-function fallbackPlan(rule: ReturnType<typeof makeRulePlan>): NarrativePlan {
-  return {
-    headline: `从${rule.focus === "language" ? "语言知识" : rule.focus === "reading" ? "阅读" : "听力"}开始，建立稳定得分点。`,
-    analysis: rule.summary,
-    weeklyPlan: rule.dailyLoop,
-    reviewRule: "错题隔天重做；连续两次答对后，放入每周混合复测。",
-  };
+function weeklyPlan(interpretation: AiDiagnosticInterpretation) {
+  return interpretation.next7Days.map((day) => `第 ${day.day} 天：${day.tasks.map((task) => `${task.label} ${task.minutes} 分钟`).join("；")}`);
 }
 
-function isNarrativePlan(value: unknown): value is NarrativePlan {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  return typeof candidate.headline === "string" && candidate.headline.length >= 4 && candidate.headline.length <= 80
-    && typeof candidate.analysis === "string" && candidate.analysis.length >= 20 && candidate.analysis.length <= 600
-    && Array.isArray(candidate.weeklyPlan) && candidate.weeklyPlan.length >= 3 && candidate.weeklyPlan.length <= 7
-    && candidate.weeklyPlan.every((item) => typeof item === "string" && item.length >= 4 && item.length <= 160)
-    && typeof candidate.reviewRule === "string" && candidate.reviewRule.length >= 8 && candidate.reviewRule.length <= 240;
+function fallbackPlan(rule: ReturnType<typeof makeRulePlan>, attempts: AttemptRecord[]): NarrativePlan {
+  const interpretation = makeFallbackInterpretation(buildDiagnosticEvidence(attempts), rule.dailyMinutes);
+  return {
+    headline: `从${rule.focus === "language" ? "语言知识" : rule.focus === "reading" ? "阅读" : "听力"}开始，建立稳定得分点。`,
+    analysis: interpretation.summary,
+    weeklyPlan: weeklyPlan(interpretation),
+    reviewRule: "分数与证据由站内确定性引擎计算；错题隔天重做，连续两次答对后进入混合复测。",
+    interpretation,
+  };
 }
 
 function siteProvider() {
@@ -105,7 +109,8 @@ async function createNarrative(
   attempts: AttemptRecord[],
   provider: ValidatedAiProvider | null,
 ) {
-  const fallback = fallbackPlan(rule);
+  const evidence = buildDiagnosticEvidence(attempts);
+  const fallback = fallbackPlan(rule, attempts);
   const selectedProvider = provider ?? siteProvider();
   if (!selectedProvider) return { narrative: fallback, source: "rule" as const };
   const summary = {
@@ -113,8 +118,13 @@ async function createNarrative(
     dailyMinutes: rule.dailyMinutes,
     focus: rule.focus,
     scores: rule.scores,
-    focusSkills: rule.focusSkills,
-    recentAttempts: attempts.slice(-60),
+    lockedEvidence: evidence,
+    allowedTargets: [...problemCatalog, ...unitCatalog].map((entry) => ({
+      problemId: entry.problemId,
+      unitId: entry.unitId ?? null,
+      href: entry.href,
+      label: entry.title,
+    })),
   };
   try {
     const outputText = await requestResponsesApi(selectedProvider, {
@@ -123,12 +133,20 @@ async function createNarrative(
         { role: "system", content: [{ type: "input_text", text: studyPlanSystemPrompt }] },
         { role: "user", content: [{ type: "input_text", text: JSON.stringify(summary) }] },
       ],
-      text: { format: { type: "json_schema", name: "study_plan", strict: true, schema: studyPlanJsonSchema } },
+      text: { format: { type: "json_schema", name: "study_diagnostic_interpretation", strict: true, schema: studyPlanJsonSchema } },
     });
-    const parsed = JSON.parse(outputText);
-    return isNarrativePlan(parsed)
-      ? { narrative: parsed, source: "ai" as const }
-      : { narrative: fallback, source: "rule" as const };
+    const interpretation = normaliseAiDiagnosticInterpretation(JSON.parse(outputText), evidence, rule.dailyMinutes);
+    if (!interpretation) return { narrative: fallback, source: "rule" as const };
+    return {
+      narrative: {
+        headline: `从${rule.focus === "language" ? "语言知识" : rule.focus === "reading" ? "阅读" : "听力"}开始，按证据安排下一步。`,
+        analysis: interpretation.summary,
+        weeklyPlan: weeklyPlan(interpretation),
+        reviewRule: "AI 只解释站内锁定证据；分数、置信度与课程链接不会交给 AI 重算。",
+        interpretation,
+      },
+      source: "ai" as const,
+    };
   } catch {
     return { narrative: fallback, source: "rule" as const };
   }

@@ -12,6 +12,7 @@ const eventTypes = new Set([
   "listening_drill",
   "practice_answer",
   "diagnostic_answer",
+  "study_activity",
 ]);
 const contentTypes = new Set(["problem", "concept", "vocabulary", "reading", "listening"]);
 const domains = new Set(["language", "reading", "listening"]);
@@ -28,6 +29,8 @@ function validEvent(value: unknown): value is StudyEvent {
   if (!eventTypes.has(String(event.type))) return false;
   if (!contentTypes.has(String(event.contentType))) return false;
   if (!safeText(event.contentId, 240) || !domains.has(String(event.domain))) return false;
+  if (event.problemId !== undefined && !safeText(event.problemId, 120)) return false;
+  if (event.unitId !== undefined && !safeText(event.unitId, 180)) return false;
   if (event.skill !== undefined && !safeText(event.skill, 240)) return false;
   if (event.rating !== undefined && !ratings.has(String(event.rating))) return false;
   if (event.correct !== undefined && typeof event.correct !== "boolean") return false;
@@ -78,6 +81,8 @@ export async function POST(request: Request) {
         type: event.type,
         contentType: event.contentType,
         contentId: event.contentId,
+        problemId: event.problemId ?? null,
+        unitId: event.unitId ?? null,
         domain: event.domain,
         skill: event.skill ?? null,
         rating: event.rating ?? null,
@@ -119,6 +124,8 @@ export async function POST(request: Request) {
       type: event.type,
       contentType: event.contentType,
       contentId: event.contentId,
+      problemId: event.problemId ?? undefined,
+      unitId: event.unitId ?? undefined,
       domain: event.domain,
       skill: event.skill ?? undefined,
       rating: event.rating ?? undefined,

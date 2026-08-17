@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { practiceAreaNames, type PracticeArea } from "@/app/data/practice";
+import { problemIdForEvent, problemTargets, resolveEventCatalogEntry, unitCatalog } from "@/app/lib/learning-catalog";
 import {
   getStudyStore,
+  type CourseCompletionState,
   type ReviewState,
   type StudyDomain,
   type StudyEvent,
@@ -45,12 +47,16 @@ function minutes(events: StudyEvent[]) {
 }
 
 function eventTitle(event: StudyEvent) {
-  if (event.type === "lesson_completed") return `${event.contentId} · 学习单元完成`;
-  if (event.type === "concept_review") return `${event.contentId} · 单元掌握判断`;
+  const catalog = resolveEventCatalogEntry(event);
+  const title = catalog?.title ?? event.skill ?? (event.domain === "language" ? "语言知识练习" : event.domain === "reading" ? "阅读练习" : "听力练习");
+  if (event.type === "lesson_completed") return `${title} · 课程完成`;
+  if (event.type === "lesson_started") return `${title} · 开始学习`;
+  if (event.type === "concept_review") return `${title} · 掌握判断`;
   if (event.type === "vocab_review") return `${event.contentId.replace(/^n\d-(legacy-)?/u, "")} · 词汇回忆`;
-  if (event.type === "listening_drill") return `${event.contentId} · 即时应答`;
-  if (event.type === "diagnostic_answer") return `${event.contentId} · 基线诊断`;
-  return `${event.contentId} · 练习作答`;
+  if (event.type === "listening_drill") return `${title} · 即时应答`;
+  if (event.type === "diagnostic_answer") return `${title} · 基线诊断`;
+  if (event.type === "study_activity") return `${title} · 有效学习`;
+  return `${title} · 练习作答`;
 }
 
 export function StudyDashboard({
@@ -62,18 +68,21 @@ export function StudyDashboard({
 }) {
   const [events, setEvents] = useState<StudyEvent[]>([]);
   const [reviewStates, setReviewStates] = useState<ReviewState[]>([]);
+  const [completions, setCompletions] = useState<CourseCompletionState[]>([]);
   const [range, setRange] = useState<RangeKey>("today");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     const store = getStudyStore();
-    const [storedEvents, states] = await Promise.all([
+    const [storedEvents, states, courseStates] = await Promise.all([
       store.getEvents(),
       store.getReviewStates(),
+      store.getCourseCompletions(),
     ]);
     setEvents(storedEvents);
     setReviewStates(states);
+    setCompletions(courseStates);
     setLoading(false);
   }, []);
 
@@ -129,7 +138,7 @@ export function StudyDashboard({
   const byDomain = (Object.keys(domainLabels) as StudyDomain[]).map((domain) => ({
     domain,
     minutes: minutes(todayEvents.filter((event) => event.domain === domain)),
-    items: todayEvents.filter((event) => event.domain === domain).length,
+    items: todayEvents.filter((event) => event.domain === domain && event.type !== "study_activity").length,
   }));
   const dueByType = Object.entries(
     dueStates.reduce<Record<string, number>>((result, state) => {
@@ -146,10 +155,15 @@ export function StudyDashboard({
     studied: new Set(
       events
         .filter((event) => event.domain === domain && event.contentType !== "vocabulary")
-        .map((event) => event.contentId),
+        .map(problemIdForEvent)
+        .filter((value): value is string => Boolean(value)),
     ).size,
-    target: domain === "language" ? 9 : 5,
+    target: problemTargets[domain],
   }));
+  const completedLessons = completions.filter((state) => state.status === "completed").length;
+  const inProgressLessons = completions.filter((state) => state.status === "in_progress").length;
+  const notStartedLessons = Math.max(0, unitCatalog.length + 5 - completedLessons - inProgressLessons);
+  const visibleActions = todayEvents.filter((event) => event.type !== "study_activity");
 
   return (
     <section className="dashboard-shell">
@@ -175,7 +189,7 @@ export function StudyDashboard({
         <div className="today-total">
           <span id="today-title">TODAY</span>
           <strong>{minutes(todayEvents)}<small> min</small></strong>
-          <p>{todayEvents.length} 个有效学习动作</p>
+          <p>{visibleActions.length} 个学习动作 · 已排除后台与闲置时间</p>
         </div>
         <div className="today-domains">
           {byDomain.map((item) => (
@@ -266,6 +280,22 @@ export function StudyDashboard({
             <article><span>Not Started</span><strong>—</strong></article>
           </div>
           <small>Mastery 来自明确的“不会 / 模糊 / 会了”判断，不使用页面浏览量推断。</small>
+        </section>
+      </div>
+
+      <div className="dashboard-two-column coverage-mastery">
+        <section>
+          <div className="section-heading"><div><span>COURSE COMPLETION</span><h2>课程完成度</h2></div></div>
+          <div className="mastery-grid">
+            <article><span>Completed</span><strong>{completedLessons}</strong></article>
+            <article><span>In Progress</span><strong>{inProgressLessons}</strong></article>
+            <article><span>Not Started</span><strong>{notStartedLessons}</strong></article>
+          </div>
+          <small>只有点击“完成这节课”才会计入 Completed；它与掌握度、正确率分别计算。</small>
+        </section>
+        <section>
+          <div className="section-heading"><div><span>METRIC GUIDE</span><h2>四个数字分别说明什么</h2></div></div>
+          <ul className="dashboard-metric-guide"><li><strong>Coverage</strong><span>接触过多少题型</span></li><li><strong>Completion</strong><span>主动完成多少课程</span></li><li><strong>Mastery</strong><span>回忆判断进入哪个阶段</span></li><li><strong>Accuracy</strong><span>已作答题目的正确率</span></li></ul>
         </section>
       </div>
 

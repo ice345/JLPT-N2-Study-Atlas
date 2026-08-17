@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { JapaneseAudioPlayer } from "@/app/components/japanese-audio-player";
+import { audioAssetForText } from "@/app/lib/audio-assets";
 import {
   diagnosticQuestions,
   diagnosticQuestionsFor,
@@ -12,6 +14,8 @@ import {
   type PracticeQuestion,
 } from "@/app/data/practice";
 import { analyzeDiagnostic } from "@/app/lib/diagnostic";
+import type { AiDiagnosticInterpretation } from "@/app/lib/ai/diagnostic-interpretation";
+import { getProblemCatalogEntry, getUnitCatalogEntry } from "@/app/lib/learning-catalog";
 import {
   createStudyId,
   getStudyStore,
@@ -41,6 +45,7 @@ type StoredPlan = RulePlan & {
   analysis: string;
   weeklyPlan: string[];
   reviewRule: string;
+  interpretation?: AiDiagnosticInterpretation;
   source: "ai" | "rule";
   generatedAt: string;
   targetExamDate: string | null;
@@ -49,15 +54,6 @@ type Profile = { targetExamDate: string; dailyMinutes: number };
 
 function formatTime(seconds: number) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-function speak(text: string) {
-  if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "ja-JP";
-  utterance.rate = 0.82;
-  window.speechSynthesis.speak(utterance);
 }
 
 function attemptsFromEvents(events: StudyEvent[]): Attempt[] {
@@ -93,9 +89,11 @@ function localPlan(attempts: Attempt[], profile: Profile): StoredPlan {
 export function PracticeStudio({
   signedIn,
   signInPath,
+  initialCardId,
 }: {
   signedIn: boolean;
   signInPath: string;
+  initialCardId?: string;
 }) {
   const [mode, setMode] = useState<"home" | "diagnostic" | "practice" | "result">("home");
   const [area, setArea] = useState<PracticeArea | "all">("all");
@@ -114,8 +112,12 @@ export function PracticeStudio({
   const [aiProvider, setAiProvider] = useState<PersonalAiProvider>(emptyPersonalAiProvider);
   const [diagnosticPreset, setDiagnosticPreset] = useState<30 | 38 | 57 | "custom">(38);
   const [customDiagnosticCount, setCustomDiagnosticCount] = useState(42);
+  const lastInteractionAt = useRef(0);
+  const secondsRef = useRef(0);
+  useEffect(() => { secondsRef.current = seconds; }, [seconds]);
 
   useEffect(() => {
+    lastInteractionAt.current = Date.now();
     let active = true;
     async function loadLocal() {
       const store = getStudyStore();
@@ -166,13 +168,27 @@ export function PracticeStudio({
   }, [signedIn]);
 
   useEffect(() => {
+    const noteInteraction = () => { lastInteractionAt.current = Date.now(); };
+    const interactions: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "scroll", "touchstart"];
+    interactions.forEach((eventName) => window.addEventListener(eventName, noteInteraction, { passive: true }));
+    return () => interactions.forEach((eventName) => window.removeEventListener(eventName, noteInteraction));
+  }, []);
+
+  useEffect(() => {
     if (!activeSession || (mode !== "diagnostic" && mode !== "practice")) return;
-    const update = () =>
-      setSeconds(Math.max(0, Math.floor((Date.now() - Date.parse(activeSession.startedAt)) / 1000)));
-    update();
-    const timer = window.setInterval(update, 1000);
-    return () => window.clearInterval(timer);
-  }, [activeSession, mode]);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible" && Date.now() - lastInteractionAt.current <= 90_000) {
+        setSeconds((value) => value + 1);
+      }
+    }, 1000);
+    const persistence = window.setInterval(() => {
+      getStudyStore().saveSession({ ...activeSession, answers, activeSeconds: secondsRef.current }).catch(() => undefined);
+    }, 15_000);
+    return () => {
+      window.clearInterval(timer);
+      window.clearInterval(persistence);
+    };
+  }, [activeSession, answers, mode]);
 
   const answered = Object.keys(answers).length;
   const correct = useMemo(
@@ -191,6 +207,7 @@ export function PracticeStudio({
     const rightRate = rightScore.length ? rightScore.filter((item) => item.correct).length / rightScore.length : -1;
     return leftRate - rightRate;
   })[0];
+  const requestedCard = initialCardId ? practiceQuestions.find((question) => question.id === initialCardId) : undefined;
 
   async function saveProfile() {
     await getStudyStore().saveProfile(profile);
@@ -207,14 +224,17 @@ export function PracticeStudio({
     setSaving(true);
     try {
       await saveProfile();
+      const seed = createStudyId("diagnostic-seed");
       const pool = nextMode === "diagnostic"
-        ? diagnosticQuestionsFor(questionCount)
+        ? diagnosticQuestionsFor(questionCount, seed)
         : prioritisedQuestions(nextArea, attempts, focusArea);
       const nextSession: LocalPracticeSession = {
         id: createStudyId("session"),
         mode: nextMode,
         area: nextArea,
         questionIds: pool.map((item) => item.id),
+        seed,
+        activeSeconds: 0,
         answers: {},
         startedAt: new Date().toISOString(),
         completedAt: null,
@@ -235,6 +255,33 @@ export function PracticeStudio({
     }
   }
 
+  async function startRequestedCard() {
+    if (!requestedCard) return;
+    const nextSession: LocalPracticeSession = {
+      id: createStudyId("session"),
+      mode: "practice",
+      area: requestedCard.area,
+      questionIds: [requestedCard.id],
+      seed: createStudyId("review-seed"),
+      activeSeconds: 0,
+      answers: {},
+      startedAt: new Date().toISOString(),
+      completedAt: null,
+    };
+    try {
+      await getStudyStore().saveSession(nextSession);
+      setSession([requestedCard]);
+      setActiveSession(nextSession);
+      setResumableSession(null);
+      setAnswers({});
+      setSeconds(0);
+      setArea(requestedCard.area);
+      setMode("practice");
+    } catch {
+      setError("无法打开这张复习卡，请稍后重试。");
+    }
+  }
+
   function resume() {
     if (!resumableSession) return;
     const savedQuestions = resumableSession.questionIds
@@ -248,6 +295,7 @@ export function PracticeStudio({
     setSession(savedQuestions);
     setAnswers(resumableSession.answers);
     setActiveSession(resumableSession);
+    setSeconds(resumableSession.activeSeconds ?? 0);
     setArea(resumableSession.area);
     setMode(resumableSession.mode);
   }
@@ -256,7 +304,7 @@ export function PracticeStudio({
     const nextAnswers = { ...answers, [questionId]: answer };
     setAnswers(nextAnswers);
     if (activeSession) {
-      const updated = { ...activeSession, answers: nextAnswers };
+      const updated = { ...activeSession, answers: nextAnswers, activeSeconds: seconds };
       setActiveSession(updated);
       getStudyStore().saveSession(updated).catch(() => setError("答案暂时没有保存成功，请重试。"));
     }
@@ -268,12 +316,14 @@ export function PracticeStudio({
     setError("");
     const completedAt = new Date().toISOString();
     try {
-      const completedSession = { ...activeSession, answers, completedAt };
+      const completedSession = { ...activeSession, answers, activeSeconds: seconds, completedAt };
       const durationPerQuestion = Math.max(1, Math.round(seconds / Math.max(1, session.length)));
       const events = await Promise.all(session.map((item) => makeStudyEvent({
         type: activeSession.mode === "diagnostic" ? "diagnostic_answer" : "practice_answer",
         contentType: item.area === "reading" ? "reading" : item.area === "listening" ? "listening" : "problem",
         contentId: item.id,
+        problemId: item.problem,
+        unitId: item.relatedContentIds.find((id) => id !== item.problem),
         domain: item.area,
         skill: item.skill,
         correct: answers[item.id] === item.answer,
@@ -344,6 +394,17 @@ export function PracticeStudio({
             <strong>本地学习已启用</strong>
             <p>当前设备会自动保存。需要在手机和电脑间延续进度时，再登录同步。</p>
             <a href={signInPath}>登录并合并本地记录 →</a>
+          </div>
+        )}
+
+        {initialCardId && (
+          <div className="resume-session">
+            <div>
+              <span>REVIEW CARD</span>
+              <strong>{requestedCard ? requestedCard.skill : "这张旧练习卡已更新"}</strong>
+              <p>{requestedCard ? "从复习队列直接重做这一题；答对后会自动更新当前错题。" : "找不到原题时，可以回到混合练习继续校准。"}</p>
+            </div>
+            {requestedCard ? <button type="button" onClick={startRequestedCard}>重做这题 →</button> : <Link href="/n2/review">返回复习中心 →</Link>}
           </div>
         )}
 
@@ -448,7 +509,7 @@ export function PracticeStudio({
               <div>
                 <span>结果参考度</span>
                 <strong>{diagnosticReport.confidenceLabel}</strong>
-                <p>已覆盖 {diagnosticReport.coveredProblems} / {diagnosticReport.totalProblems} 个题型</p>
+                <p>已覆盖 {diagnosticReport.coveredProblems} / {diagnosticReport.totalProblems} 个题型 · 本次区间约 {diagnosticReport.scoreInterval[0]}–{diagnosticReport.scoreInterval[1]}%</p>
               </div>
             </div>
             <div className="diagnostic-domain-scores">
@@ -460,10 +521,10 @@ export function PracticeStudio({
               ))}
             </div>
             <div className="diagnostic-skill-grid">
-              <div><span>先巩固</span><ul>{diagnosticReport.weakestSkills.map((score) => <li key={score.key}><strong>{score.label}</strong><small>{score.percent}%</small></li>)}</ul></div>
-              <div><span>当前优势</span><ul>{diagnosticReport.strongestSkills.map((score) => <li key={score.key}><strong>{score.label}</strong><small>{score.percent}%</small></li>)}</ul></div>
+              <div><span>优先校准</span><ul>{diagnosticReport.weakestSkills.map((score) => <li key={score.key}><strong>{score.label}</strong><small>{score.percent}% · {score.total} 题</small></li>)}</ul></div>
+              <div><span>目前较稳定</span><ul>{diagnosticReport.strongestSkills.map((score) => <li key={score.key}><strong>{score.label}</strong><small>{score.percent}% · {score.total} 题</small></li>)}</ul></div>
             </div>
-            <p className="diagnostic-disclaimer">这是一份站内学习诊断，用于安排复习顺序，不等同于官方 JLPT 成绩或合格预测。</p>
+            <p className="diagnostic-disclaimer">{diagnosticReport.confidenceNote} 这是一份站内学习诊断，用于安排复习顺序，不等同于官方 JLPT 成绩、能力认证或合格预测。</p>
           </section>
         )}
         {plan && (
@@ -474,6 +535,22 @@ export function PracticeStudio({
               <p>{plan.analysis}</p>
               <ul>{plan.weeklyPlan.map((item) => <li key={item}>{item}</li>)}</ul>
               <small>{plan.reviewRule}</small>
+              {plan.interpretation && (
+                <div className="ai-interpretation">
+                  <section>
+                    <span>优先行动</span>
+                    {plan.interpretation.priorities.length ? plan.interpretation.priorities.map((item) => {
+                      const target = getUnitCatalogEntry(item.unitId) ?? getProblemCatalogEntry(item.problemId);
+                      return <article key={`${item.problemId}:${item.unitId ?? "problem"}`}><strong>{target?.title ?? "相关学习内容"}</strong><p>{item.reason}</p><em>{item.action}</em>{target && <Link href={target.href}>打开课程 →</Link>}</article>;
+                    }) : <p>先完成更多题目，再生成细分优先级。</p>}
+                  </section>
+                  <section>
+                    <span>证据边界</span>
+                    {[...plan.interpretation.strengths, ...plan.interpretation.risks].slice(0, 4).map((item) => <article key={item.skillId}><strong>{item.skillId.split(":").slice(1).join(":")}</strong><p>{item.evidence}</p><em>{item.interpretation}</em></article>)}
+                    {plan.interpretation.needsMoreEvidence.length > 0 && <p>另有 {plan.interpretation.needsMoreEvidence.length} 项能力样本不足，暂不判定强弱。</p>}
+                  </section>
+                </div>
+              )}
             </div>
             <div className="plan-scores">
               {(Object.keys(plan.scores) as PracticeArea[]).map((item) => (
@@ -532,7 +609,7 @@ export function PracticeStudio({
             <div className="question-top">
               <span>{String(index + 1).padStart(2, "0")}</span>
               <div><small>{practiceAreaNames[item.area]} · {item.title}</small><strong>{item.skill}</strong></div>
-              {item.audioText && <button type="button" onClick={() => speak(item.audioText!)} aria-label="朗读日语题干">朗读日语 ↗</button>}
+              {item.audioText && (() => { const asset = audioAssetForText(item.audioText!); return <JapaneseAudioPlayer compact src={asset?.src} duration={asset?.duration} label="播放题干" text={item.audioText!} />; })()}
             </div>
             {item.context && <p className="question-context"><JapaneseReading text={item.context} /></p>}
             <h3><JapaneseReading text={item.prompt} /></h3>

@@ -78,6 +78,8 @@ test("renders the practice, dashboard, and search workspaces", async () => {
     ["/n2/language/q9", /文章の文法/u],
     ["/n2/reading/q10", /一篇只做一件事/u],
     ["/privacy", /先在你的设备上学习/u],
+    ["/about", /JLPT STUDY GARDEN/u],
+    ["/vocabulary?level=N5", /N1–N5/u],
     ["/n2/search", /SEARCH THE ATLAS/u],
   ];
   for (const [path, marker] of expectations) {

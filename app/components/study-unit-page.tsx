@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { JapaneseReading } from "@/app/components/japanese-reading";
-import type { LearnerProblemDefinition, LearnerStudyUnitDefinition } from "@/app/data/problem-definition";
+import { JapaneseAudioPlayer } from "@/app/components/japanese-audio-player";
+import { audioAssetForId } from "@/app/lib/audio-assets";
+import type { LearnerProblemDefinition, LearnerStudyUnitDefinition, StudyConcept } from "@/app/data/problem-definition";
 import {
   getStudyStore,
   recordReview,
   recordStudyEvent,
+  type CourseCompletionStatus,
   type ReviewState,
   type StudyRating,
 } from "@/app/lib/study-store";
+import { useActiveStudyTimer } from "@/app/lib/use-active-study-timer";
 
 const ratings: { rating: StudyRating; label: string; hint: string }[] = [
   { rating: "again", label: "不会", hint: "10 分钟后再看" },
@@ -21,19 +25,37 @@ const ratings: { rating: StudyRating; label: string; hint: string }[] = [
 export function StudyUnitPage({ definition, unit }: { definition: LearnerProblemDefinition; unit: LearnerStudyUnitDefinition }) {
   const isListening = definition.domain === "listening";
   const [reviewState, setReviewState] = useState<ReviewState>();
+  const [completionStatus, setCompletionStatus] = useState<CourseCompletionStatus>("not_started");
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
+  const [activeConceptGroup, setActiveConceptGroup] = useState("group-1");
+  const [showCompleteLesson, setShowCompleteLesson] = useState(false);
   const started = useRef(false);
   const unitIndex = definition.units.findIndex((item) => item.id === unit.id);
   const previous = definition.units[unitIndex - 1];
   const next = definition.units[unitIndex + 1];
   const basePath = `/n2/${definition.domain}/${definition.slug}`;
+  const conceptGroups = useMemoConceptGroups(unit.concepts);
+  const visibleConceptGroups = showCompleteLesson
+    ? conceptGroups
+    : [conceptGroups.find((group) => group.id === activeConceptGroup) ?? conceptGroups[0]];
+  useActiveStudyTimer({
+    contentId: unit.id,
+    contentType: "concept",
+    domain: definition.domain,
+    problemId: definition.slug,
+    unitId: unit.id,
+    skill: unit.title,
+  });
 
   useEffect(() => {
     let active = true;
-    getStudyStore().getReviewState(unit.id)
-      .then((state) => {
-        if (active) setReviewState(state);
+    Promise.all([getStudyStore().getReviewState(unit.id), getStudyStore().getCourseCompletions()])
+      .then(([state, completions]) => {
+        if (active) {
+          setReviewState(state);
+          setCompletionStatus(completions.find((item) => item.contentId === unit.id)?.status ?? "not_started");
+        }
       })
       .catch(() => setMessage("当前浏览器没有开放本地学习记录，但课程仍可正常使用。"));
     if (!started.current) {
@@ -42,6 +64,8 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
         type: "lesson_started",
         contentType: "concept",
         contentId: unit.id,
+        problemId: definition.slug,
+        unitId: unit.id,
         domain: definition.domain,
         skill: `${definition.japanese}・${unit.title}`,
       }).catch(() => undefined);
@@ -49,7 +73,7 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
     return () => {
       active = false;
     };
-  }, [definition.domain, definition.japanese, unit.id, unit.title]);
+  }, [definition.domain, definition.japanese, definition.slug, unit.id, unit.title]);
 
   function answerDrill(drillId: string, choice: number, correctAnswer: number) {
     if (answers[drillId] !== undefined) return;
@@ -58,6 +82,8 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
       type: "practice_answer",
       contentType: definition.domain === "listening" ? "listening" : definition.domain === "reading" ? "reading" : "problem",
       contentId: `${definition.id}-${drillId}`,
+      problemId: definition.slug,
+      unitId: unit.id,
       domain: definition.domain,
       skill: unit.title,
       correct: choice === correctAnswer,
@@ -73,23 +99,34 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
           contentType: "concept",
           domain: definition.domain,
           skill: unit.title,
+          problemId: definition.slug,
+          unitId: unit.id,
         },
         rating,
         reviewState,
       );
       setReviewState(state);
-      if (rating === "good") {
-        await recordStudyEvent({
-          type: "lesson_completed",
-          contentType: "concept",
-          contentId: unit.id,
-          domain: definition.domain,
-          skill: unit.title,
-        });
-      }
-      setMessage(rating === "good" ? "本单元已完成。下一步可以继续学习或进入练习。" : `已标记为“${rating === "hard" ? "模糊" : "不会"}”，系统会安排再次复习。`);
+      setMessage(`掌握判断已标记为“${rating === "good" ? "会了" : rating === "hard" ? "模糊" : "不会"}”，复习时间已经单独安排。`);
     } catch {
       setMessage("掌握状态没有保存成功，请稍后重试。 ");
+    }
+  }
+
+  async function completeLesson() {
+    try {
+      await recordStudyEvent({
+        type: "lesson_completed",
+        contentType: "concept",
+        contentId: unit.id,
+        problemId: definition.slug,
+        unitId: unit.id,
+        domain: definition.domain,
+        skill: unit.title,
+      });
+      setCompletionStatus("completed");
+      setMessage("本课已完成；掌握度仍由你的主动回忆判断单独计算。下一步可以继续学习或进入练习。");
+    } catch {
+      setMessage("课程完成状态没有保存成功，请稍后重试。");
     }
   }
 
@@ -107,9 +144,9 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
           <p lang="ja" className="study-unit-japanese">{unit.japanese}</p>
           <p>{unit.objective}</p>
         </div>
-        <div className={`study-unit-current status-${reviewState?.mastery ?? "new"}`}>
+        <div className={`study-unit-current status-${completionStatus}`}>
           <span>CURRENT STATUS</span>
-          <strong>{reviewState?.mastery === "mastered" ? "已掌握" : reviewState?.mastery === "review" ? "待复习" : reviewState?.mastery === "learning" ? "学习中" : "未开始"}</strong>
+          <strong>{completionStatus === "completed" ? "课程已完成" : completionStatus === "in_progress" ? "学习中" : "未开始"}</strong>
         </div>
       </header>
 
@@ -128,9 +165,15 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
       </section>
 
       <section className="study-unit-section" aria-labelledby="unit-model-title">
-        <header><span>CORE MODEL</span><h2 id="unit-model-title">{isListening ? "听到信号以后，沿这条线判断" : "看到题干线索后，沿这条线判断"}</h2></header>
+        <header><span>CORE MODEL</span><h2 id="unit-model-title">{isListening ? "听到信号以后，沿这条线判断" : "看到题干线索后，沿这条线判断"}</h2><p>先完成当前组，再切换到下一组；需要总复习时可以一次展开完整课程。</p></header>
+        <div className="study-concept-groups" aria-label="课程概念组">
+          {conceptGroups.map((group, index) => <button aria-pressed={!showCompleteLesson && group.id === activeConceptGroup} className={!showCompleteLesson && group.id === activeConceptGroup ? "active" : ""} key={group.id} onClick={() => { setActiveConceptGroup(group.id); setShowCompleteLesson(false); }} type="button"><span>{String(index + 1).padStart(2, "0")}</span>{group.title}<small>{group.concepts.length} 个判断</small></button>)}
+          <button aria-pressed={showCompleteLesson} className={showCompleteLesson ? "active" : ""} onClick={() => setShowCompleteLesson((value) => !value)} type="button"><span>ALL</span>{showCompleteLesson ? "收回分组学习" : "展开完整课程"}<small>{unit.concepts.length} 个判断</small></button>
+        </div>
         <div className="study-concept-list">
-          {unit.concepts.map((concept, index) => (
+          {visibleConceptGroups.flatMap((group) => group.concepts).map((concept) => {
+            const index = unit.concepts.indexOf(concept);
+            return (
             <article key={concept.cue}>
               <span>{String(index + 1).padStart(2, "0")}</span>
               <div className="study-concept-cue">
@@ -142,7 +185,7 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
               {concept.example && <blockquote lang="ja">→ <JapaneseReading text={concept.example} />{concept.exampleMeaning && <small>{concept.exampleMeaning}</small>}</blockquote>}
               {concept.wrong && <aside>Trap · {concept.wrong}</aside>}
             </article>
-          ))}
+          );})}
         </div>
       </section>
 
@@ -160,6 +203,7 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
             return (
               <article key={drill.id}>
                 <div className="study-drill-head"><span>{String(index + 1).padStart(2, "0")}</span><h3 lang="ja"><JapaneseReading text={drill.cue} /></h3></div>
+                {definition.slug === "problem-4" && (() => { const asset = audioAssetForId(`p4-drill-${drill.id}`); return <JapaneseAudioPlayer compact src={asset?.src} duration={asset?.duration} text={drill.cue} label="播放题干" />; })()}
                 <div className="study-drill-choices">
                   {drill.choices.map((option, optionIndex) => (
                     <button
@@ -181,8 +225,11 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
       </section>
 
       <section className="study-unit-mastery" aria-labelledby="unit-mastery-title">
-        <div><span>YOUR MASTERY</span><h2 id="unit-mastery-title">这个判断现在掌握到哪里？</h2><p>只有主动选择才会改变进度；浏览页面不会自动算作完成。</p></div>
-        <div>{ratings.map((option) => <button className={reviewState?.rating === option.rating ? "active" : ""} key={option.rating} onClick={() => rateUnit(option.rating)} title={option.hint} type="button">{option.label}</button>)}</div>
+        <div><span>FINISH &amp; REVIEW</span><h2 id="unit-mastery-title">先确认完成课程，再判断掌握程度。</h2><p>课程完成度与“不会 / 模糊 / 会了”彼此独立；浏览页面不会自动算作完成。</p></div>
+        <div>
+          <button className={completionStatus === "completed" ? "active" : ""} disabled={completionStatus === "completed"} onClick={completeLesson} type="button">{completionStatus === "completed" ? "课程已完成" : "完成这节课"}</button>
+          {ratings.map((option) => <button className={reviewState?.rating === option.rating ? "active" : ""} key={option.rating} onClick={() => rateUnit(option.rating)} title={option.hint} type="button">{option.label}</button>)}
+        </div>
       </section>
 
       {message && <div className="study-unit-result" role="status">
@@ -202,4 +249,17 @@ export function StudyUnitPage({ definition, unit }: { definition: LearnerProblem
       <p className="study-unit-resource-link"><Link href="/n2/resources">资料与内容说明 →</Link></p>
     </article>
   );
+}
+
+function useMemoConceptGroups(concepts: StudyConcept[]) {
+  const groups = new Map<string, { id: string; title: string; concepts: StudyConcept[] }>();
+  concepts.forEach((concept, index) => {
+    const fallbackIndex = Math.floor(index / 3) + 1;
+    const id = concept.groupId ?? `group-${fallbackIndex}`;
+    const title = concept.groupTitle ?? `核心判断 ${fallbackIndex}`;
+    const group = groups.get(id) ?? { id, title, concepts: [] };
+    group.concepts.push(concept);
+    groups.set(id, group);
+  });
+  return [...groups.values()];
 }

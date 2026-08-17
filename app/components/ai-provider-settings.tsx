@@ -110,7 +110,6 @@ export function AiProviderSettings({
     <p>规则诊断无需 AI。若使用个人密钥，可选择“仅使用一次”：密钥只在当前页面内存与本次请求中存在。登录后也可选择加密保存，浏览器只会看到末四位。</p>
     <div className="ai-provider-choice" role="group" aria-label="选择 AI 提供商">
       <button className={value.provider === "openai" ? "active" : ""} type="button" onClick={() => change({ provider: "openai", endpoint: "" })}>OpenAI</button>
-      <button className={value.provider === "custom" ? "active" : ""} type="button" onClick={() => change({ provider: "custom" })}>兼容提供商</button>
     </div>
     {saved && value.credentialId && (
       <div className="ai-saved-credential">
@@ -119,7 +118,12 @@ export function AiProviderSettings({
       </div>
     )}
     <label>API Key<input autoComplete="off" onChange={(event) => change({ apiKey: event.target.value })} placeholder={saved ? "填写新密钥会替换已保存配置" : "仅在当前页面内存中保留"} type="password" value={value.apiKey} /></label>
-    {value.provider === "custom" && <label>兼容 Responses API 的公开 HTTPS 地址<input autoComplete="off" inputMode="url" onChange={(event) => change({ endpoint: event.target.value })} placeholder="https://provider.example/v1/responses" type="url" value={value.endpoint} /></label>}
+    <details className="ai-provider-advanced" open={value.provider === "custom"}>
+      <summary>高级设置 · 自定义兼容提供商</summary>
+      <p>仅用于支持 Responses API 与严格 JSON Schema 的公开 HTTPS 服务；服务器仍会拦截本机、内网与重定向地址。</p>
+      <button className={value.provider === "custom" ? "active" : ""} type="button" onClick={() => change({ provider: value.provider === "custom" ? "openai" : "custom", endpoint: value.provider === "custom" ? "" : value.endpoint })}>{value.provider === "custom" ? "改回 OpenAI" : "启用兼容提供商"}</button>
+      {value.provider === "custom" && <label>兼容 Responses API 的公开 HTTPS 地址<input autoComplete="off" inputMode="url" onChange={(event) => change({ endpoint: event.target.value })} placeholder="https://provider.example/v1/responses" type="url" value={value.endpoint} /></label>}
+    </details>
     <label>模型名{value.provider === "openai" ? "（可选）" : ""}<input autoComplete="off" onChange={(event) => change({ model: event.target.value })} placeholder={value.provider === "openai" ? "默认使用站点推荐模型" : "填写提供商支持的模型名"} value={value.model} /></label>
     <div className="ai-provider-actions">
       <button type="button" onClick={() => { onChange(emptyPersonalAiProvider); setMessage("已清除此页中的密钥；之后仍可继续使用规则计划。"); }}>清除此页密钥</button>

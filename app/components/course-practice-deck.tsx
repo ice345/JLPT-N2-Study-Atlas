@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { JapaneseReading } from "@/app/components/japanese-reading";
+import { JapaneseAudioPlayer } from "@/app/components/japanese-audio-player";
+import { audioAssetForId } from "@/app/lib/audio-assets";
 import type { LearnerProblemDefinition } from "@/app/data/problem-definition";
 import { recordReview, recordStudyEvent } from "@/app/lib/study-store";
 
@@ -12,7 +14,7 @@ export function CoursePracticeDeck({ definition }: { definition: LearnerProblemD
   const answered = Object.keys(answers).length;
   const correct = drills.filter((drill) => answers[drill.id] === drill.answer).length;
 
-  async function choose(drillId: string, choice: number, answer: number, skill: string) {
+  async function choose(drillId: string, choice: number, answer: number, skill: string, unitId: string) {
     if (answers[drillId] !== undefined) return;
     setAnswers((current) => ({ ...current, [drillId]: choice }));
     const isCorrect = choice === answer;
@@ -20,8 +22,8 @@ export function CoursePracticeDeck({ definition }: { definition: LearnerProblemD
     const contentType = definition.domain === "reading" ? "reading" : definition.domain === "listening" ? "listening" : "problem";
     try {
       await Promise.all([
-        recordStudyEvent({ type: "practice_answer", contentType, contentId, domain: definition.domain, skill, correct: isCorrect }),
-        recordReview(definition.domain === "listening" ? "listening_drill" : "concept_review", { contentId, contentType, domain: definition.domain, skill }, isCorrect ? "good" : "again"),
+        recordStudyEvent({ type: "practice_answer", contentType, contentId, problemId: definition.slug, unitId, domain: definition.domain, skill, correct: isCorrect }),
+        recordReview(definition.domain === "listening" ? "listening_drill" : "concept_review", { contentId, contentType, problemId: definition.slug, unitId, domain: definition.domain, skill }, isCorrect ? "good" : "again"),
       ]);
       setMessage(isCorrect ? "已记录为会了；答错的卡片会更快回到复习中心。" : "这张卡已进入短间隔复习。先看解析，再继续下一题。");
     } catch {
@@ -45,13 +47,14 @@ export function CoursePracticeDeck({ definition }: { definition: LearnerProblemD
               return (
                 <article key={drill.id}>
                   <div className="study-drill-head"><span>{String(index + 1).padStart(2, "0")}</span><h3 lang="ja"><JapaneseReading text={drill.cue} /></h3></div>
+                  {definition.slug === "problem-4" && (() => { const asset = audioAssetForId(`p4-drill-${drill.id}`); return <JapaneseAudioPlayer compact src={asset?.src} duration={asset?.duration} text={drill.cue} label="播放题干" />; })()}
                   <div className="study-drill-choices">
                     {drill.choices.map((option, optionIndex) => (
                       <button
                         className={hasAnswered ? optionIndex === drill.answer ? "correct" : optionIndex === choice ? "wrong" : "" : ""}
                         disabled={hasAnswered}
                         key={option}
-                        onClick={() => choose(drill.id, optionIndex, drill.answer, unit.title)}
+                        onClick={() => choose(drill.id, optionIndex, drill.answer, unit.title, unit.id)}
                         type="button"
                       ><span>{String.fromCharCode(65 + optionIndex)}</span><JapaneseReading text={option} /></button>
                     ))}

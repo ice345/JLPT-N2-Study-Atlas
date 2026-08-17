@@ -14,7 +14,7 @@ reviewed Japanese source
   -> static website playback
 ```
 
-The current benchmark-first phase intentionally generates only 18 comparison files: the same three lines for three female and three male candidates. Full Problem 4 and site-wide generation remain disabled until a voice is selected.
+The benchmark phase generated 18 comparison files: the same three lines for three female and three male candidates. The learner's visible benchmark decision selected `female-morioki` as the primary voice. `male-fumifumi` is the neutral conversational counterpart used to satisfy the course's male/female listening-diversity requirement. Production generation remains deliberately limited to reviewed learning scopes; it does not bulk-generate the vocabulary catalog.
 
 ## Prerequisites
 
@@ -114,7 +114,7 @@ npm run audio:dictionary:sync
 
 The benchmark currently needs no custom dictionary entries; its one ruby example uses a reviewed `ttsText` override.
 
-## Generate benchmark audio
+## Generate audio
 
 Preview the work without contacting the engine:
 
@@ -136,7 +136,21 @@ npm run audio:benchmark -- --id formal
 npm run audio:benchmark -- --voice female-morioki --id question --force
 ```
 
-`audio:generate` currently accepts only `--scope benchmark`. This guard is intentional: the user asked to choose the voice before generating Problem 4 or the rest of the website.
+Generate all Problem 4 lesson drills and response cards with the approved production pool:
+
+```bash
+npm run audio:generate -- --scope p4 --dry-run
+npm run audio:generate -- --scope p4
+```
+
+Generate only the Problem 4 response-card subset, or regenerate a single asset:
+
+```bash
+npm run audio:generate -- --scope listening
+npm run audio:generate -- --scope p4 --id p4-card-03 --force
+```
+
+The unified CLI accepts `benchmark`, `p4`, `listening`, and `language`. The `language` scope is reserved for a later reviewed catalog and intentionally has no source items yet. Course scopes reject voices unless `productionApproved` is true. For course assets, voices are assigned deterministically from the approved pool, so the same item retains the same voice across rebuilds.
 
 ## Incremental manifest behavior
 
